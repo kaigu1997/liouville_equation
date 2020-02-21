@@ -1,0 +1,10 @@
+*.o
+*.txt
+*.png
+*.gif
+log
+output
+input
+mqcl
+.vscode/
+*result*/
