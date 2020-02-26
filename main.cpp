@@ -66,7 +66,7 @@ int main(void)
     const double pmin = -pi * hbar / dx;
     const double pmax = -pmin;
     const double TotalMomentumLength = pmax - pmin;
-    const double dp = TotalMomentumLength / static_cast<double>(NGrids);
+    const double dp = TotalMomentumLength / static_cast<double>(NGrids - 1);
     // NoPSGrids: Number of Phase Space Grids
     const int NoPSGrids = NGrids * NGrids;
     // dim: total number of elements (dimension) in L/rho
