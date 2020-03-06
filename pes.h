@@ -12,22 +12,25 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <functional>
 #include <mkl.h>
 #include <utility>
-#include "general.h"
 #include "matrix.h"
 using namespace std;
 
+enum Representation
+{
+    Diabatic, Adiabatic, ForceBasis
+};
 // the number of potential energy surfaces
 const int NumPES = 2;
 // the number of potential matrix elements, =numpes^2
 const int NoMatrixElement = 4;
-// diabatic PES matrix: analytical
-RealMatrix DiaPotential(const double x);
-RealMatrix DiaForce(const double x);
+// function objects: potential(V), force(F=-dV/dR), NAC, and basis trans matrix
+extern const function<RealMatrix(const double)> potential[3];
+extern const function<RealMatrix(const double)> force[3];
+extern const function<RealMatrix(const double)> coupling[3];
 
-// transformation matrix from diabatic density matrix to adiabatic one
-// i.e. C*rho(dia)=rho(adia), which diagonalize PES only (instead of diagonal L)
-ComplexMatrix DiaToAdia(const int NGrids, const double* GridPosition);
+extern const function<void(ComplexMatrixMatrix&, int, const double*)> basis_transform[3][3];
 
 #endif // !PES_H

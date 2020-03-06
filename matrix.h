@@ -10,6 +10,7 @@
 // Error code: 100 for different size
 
 #include <complex>
+#include <memory>
 #include <mkl.h>
 #include <utility>
 using namespace std;
@@ -22,9 +23,10 @@ typedef pair<int, int> Index;
 // the mode constant for VMF functions in MKL
 const MKL_INT64 mode = VML_HA;
 
-// declaration of the two kinds of matrix
+// declaration of all kinds of matrix
 class RealMatrix;
 class ComplexMatrix;
+class ComplexMatrixMatrix;
 
 // transfrom a double array to a complex array
 void real_to_complex(const double* da, Complex* ca, const int length);
@@ -36,7 +38,7 @@ class RealMatrix
 private:
     int length;
     int nelements;
-    double* content;
+    double** content;
 public:
     // default constructor with all zero
     RealMatrix(const int size);
@@ -44,8 +46,6 @@ public:
     RealMatrix(const RealMatrix& matrix);
     // quasi copy constructor
     RealMatrix(const int size, const double* array);
-    // move constructor
-    RealMatrix(RealMatrix&& matrix);
     // one element is give number and the other are all zero
     RealMatrix(const int size, const Index& idx, const double& val);
     // destructor
@@ -57,11 +57,11 @@ public:
     const double* data(void) const;
     // copy to an array
     void transform_to_1d(double* array) const;
-    // overload operator(): return the element (=[][])
-    double& operator()(const int idx1, const int idx2);
-    double& operator()(const Index& idx);
-    const double& operator()(const int idx1, const int idx2) const;
-    const double& operator()(const Index& idx) const;
+    // make it symmetry
+    void symmetrize(void);
+    // overload operator[]
+    double* operator[](const int idx);
+    const double* operator[](const int idx) const;
     // overload numerical calculation by VMF
     friend RealMatrix operator+(const RealMatrix& lhs, const double& rhs);
     friend RealMatrix operator+(const double& lhs, const RealMatrix& rhs);
@@ -81,8 +81,9 @@ public:
     // assignment operator
     RealMatrix& operator=(const RealMatrix& rhs);
     RealMatrix& operator=(const double* array);
-    // the two kinds of matrix could access to each other
+    // all kinds of matrix could access to each other
     friend class ComplexMatrix;
+    friend class ComplexMatrixMatrix;
 };
 
 // the functions of complex matrix, similar to above
@@ -91,7 +92,7 @@ class ComplexMatrix
 private:
     int length;
     int nelements;
-    Complex* content;
+    Complex** content;
 public:
     // default constructor with all zero
     ComplexMatrix(const int size);
@@ -103,8 +104,6 @@ public:
     ComplexMatrix(const RealMatrix& matrix);
     // quasi copy constructor from real matrix
     ComplexMatrix(const int size, const double* array);
-    // move constructor
-    ComplexMatrix(ComplexMatrix&& matrix);
     // one element is give number and the other are all zero
     ComplexMatrix(const int size, const Index& idx, const Complex& val);
     // destructor
@@ -116,11 +115,11 @@ public:
     const Complex* data(void) const;
     // copy to an array
     void transform_to_1d(Complex* array) const;
-    // overload operator(): return the element (=[][])
-    Complex& operator()(const int idx1, const int idx2);
-    Complex& operator()(const Index& idx);
-    const Complex& operator()(const int idx1, const int idx2) const;
-    const Complex& operator()(const Index& idx) const;
+    // to make the matrix hermitian
+    void hermitize(void);
+    // overload operator[]
+    Complex* operator[](const int idx);
+    const Complex* operator[](const int idx) const;
     // overload numerical calculation
     friend ComplexMatrix operator+(const ComplexMatrix& lhs, const Complex& rhs);
     friend ComplexMatrix operator+(const Complex& lhs, const ComplexMatrix& rhs);
@@ -140,8 +139,31 @@ public:
     // assignment operator
     ComplexMatrix& operator=(const ComplexMatrix& rhs);
     ComplexMatrix& operator=(const Complex* array);
-    // the two kinds of matrix could access to each other
+    // all kinds of matrix could access to each other
     friend class RealMatrix;
+    friend class ComplexMatrixMatrix;
+};
+
+// class for density matrix;
+// outer matrix is grid point (Ri, Pj)
+// inner matrix is density matrix (a pes, b pes)
+class ComplexMatrixMatrix
+{
+private:
+    const int length;
+    const int nelements;
+    ComplexMatrix** content;
+    allocator<ComplexMatrix> MatrixAllocator;
+public:
+    // constructor; out for this, inner for ComplexMatrix
+    ComplexMatrixMatrix(const int OuterLength, const int InnerLength);
+    // destructor;
+    ~ComplexMatrixMatrix(void);
+    // operator[]
+    ComplexMatrix* operator[](const int idx);
+    const ComplexMatrix* operator[](const int idx) const;
+    // output
+    friend ostream& operator<<(ostream& os, const ComplexMatrixMatrix& rho);
 };
 
 #endif // !MATRIX_H

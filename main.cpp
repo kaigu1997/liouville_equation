@@ -1,17 +1,14 @@
 // The purpose of this program is to give
 // an exact solution of quantum mechanic problem
-// using Discrete Variable Representation (DVR)
-// in [1]J. Chem. Phys., 1992, 96(3): 1982-1991,
-// with Absorbing Boundary Condition in
-// [2]J. Chem. Phys., 2002, 117(21): 9552-9559
-// and [3]J. Chem. Phys., 2004, 120(5): 2247-2254.
-// This program could be used to solve
-// exact solution under diabatic basis ONLY.
+// using Mixed Quantum-Classical Liouville Equation
+// (MQCLE) by Discrete Variable Representation (DVR).
+// This program could be used to solve the MQCLE
+// under diabatic/adiabatic/force basis, etc.
 // It requires C++17 or newer C++ standards when compiling
 // and needs connection to Intel(R) Math Kernel Library
 // (MKL) by whatever methods: icpc/msvc/gcc -I.
 // Error code criteria: 1XX for matrix, 
-// 2XX for general, 3XX for pes, and 4XX for main.
+// 2XX for pes, 3XX for general, and 4XX for main.
 
 #include <chrono>
 #include <ctime>
@@ -31,6 +28,9 @@ int main(void)
 {
     // initialize: read input and calculate cooresponding constants
     // including the number of grids, their coordinates, etc
+    cout.sync_with_stdio(false);
+    clog.sync_with_stdio(false);
+    cerr.sync_with_stdio(false);
     // in: the input file
     ifstream in("input");
     in.sync_with_stdio(false);
@@ -49,7 +49,7 @@ int main(void)
     const double p0max = p0 + 3.0 * SigmaP;
     clog << "The particle weighes " << mass << " a.u.,\n"
         << "starting from " << x0 << " with initial momentum " << p0 << ".\n"
-        << "Initial width of x and p are " << SigmaX << " and " << SigmaP << ", respectively.\n";
+        << "Initial width of x and p are " << SigmaX << " and " << SigmaP << ", respectively." << endl;
     
     // read interaction region
     const double xmin = read_double(in);
@@ -96,55 +96,25 @@ int main(void)
     // read evolving time and output time, in unit of a.u.
     const double TotalTime = read_double(in);
     const double OutputTime = read_double(in);
-    const double dt = OutputTime;
+    const double dt = cutoff(read_double(in));
     // finish reading
     in.close();
     // calculate corresponding dt of the above (how many dt they have)
     const int TotalStep = static_cast<int>(TotalTime / dt);
-    clog << "dt = " << dt << ", and there is overall " << TotalStep << " time steps.\n";
+    const int OutputStep = static_cast<int>(OutputTime / dt);
+    clog << "dt = " << dt << ", and there is overall " << TotalStep << " time steps." << endl;
 
-    // construct the Liouville superoperator.
-    // diabatic Liouville used for propagator
-    // drho/dt=-iLrho => rho(t)=e^(-iLt)rho(0)
-    // rho is the density matrix, \rho_W^{ab}(R_i,P_j)
-    // =rho[((a*numpes+b)*ngrids+i)*ngrids+j],
-    // meaning the density matrix element
-    // rho[a][b] at the phase space grid (Ri,Pj)
-    const ComplexMatrix Liouville = Liouville_construction(NGrids, GridPosition, GridMomentum, dx, dp, mass);
-    // TransformationMatrix makes dia to adia
-    const ComplexMatrix TransformationMatrix = DiaToAdia(NGrids, GridPosition);
-
-    // diagonalize the Liouville superoperator and then evolve
-    // diagonalize L
-    ComplexMatrix EigVec = Liouville;
-    double* EigVal = new double[dim];
-    if (LAPACKE_zheev(LAPACK_ROW_MAJOR, 'V', 'U', dim, reinterpret_cast<MKL_Complex16*>(EigVec.data()), dim, EigVal) > 0)
-    {
-        cerr << "FAILING DIAGONALIZE HAMILTONIAN WITHOUT ABSORBING POTENTIAL" << endl;
-        exit(400);
-    }
-
-    // memory allocation:
-    // rho(t)_adia=C2*rho(t)_dia=C2*C1*exp(-i*Hd*t)*C1T*rho(0)_dia
-    // so we need: C2, C1(=EigVal), rho(t)_adia, rho(t)_dia, rho(t)_diag, rho(0)_diag
-    // besides, we need to save the population on each PES
-    // rho_t: diabatic/adiabatic/diagonal representation
-    Complex* rho_t_dia = new Complex[dim];
-    Complex* rho_t_adia = new Complex[dim];
-    Complex* rho_t_diag = new Complex[dim];
-    // construct the initial adiabatic wavepacket: gaussian on the ground state PES
+    // memory allocation: density matrix
+    ComplexMatrixMatrix rho(NGrids, NumPES);
+    // construct the initial adiabatic PWTDM: gaussian on the ground state PES
     // rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x-(p-p0)^2/2sigma_p)/(pi*hbar)
-    density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho_t_adia);
-    // calculate the initial diagonal density matrix
-    cblas_zgemv(CblasRowMajor, CblasConjTrans, dim, dim, &Alpha, TransformationMatrix.data(), dim, rho_t_adia, 1, &Beta, rho_t_dia, 1);
-    Complex* rho_0 = new Complex[dim];
-    cblas_zgemv(CblasRowMajor, CblasConjTrans, dim, dim, &Alpha, EigVec.data(), dim, rho_t_dia, 1, &Beta, rho_0, 1);
-    const ComplexVector rho_0_diag(rho_0);
+    // initially in the adiabatic basis
+    density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho);
+    // then transform to diabatic basis
+    basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
 
     // population on each PES, and the population on each PES at last output moment
-    double Population[NumPES] = {1.0}, OldPopulation[NumPES] = {0};
-    // before calculating population, check if wavepacket have passed through center(=0.0)
-    bool PassedCenter = false;
+    double Population[NumPES] = {1.0};
     // Steps contains when is each step, also one in a line
     ofstream Steps("t.txt");
     Steps.sync_with_stdio(false);
@@ -155,51 +125,44 @@ int main(void)
     // (new line) rho[0][0](x0,p0,t1), ...
     ofstream Output("phase.txt");
     Output.sync_with_stdio(false);
-    clog << "Finish diagonalization and memory allocation.\n" << show_time;
+    clog << "Finish diagonalization and memory allocation.\n" << show_time << endl;
 
 
-    // evolution:
+    // evolve: Trotter expansion
+    // rho(t+dt)=exp(-iLQdt/2)exp(-iLRdt/2)exp(-iLPdt)exp(-iLRdt/2)exp(-iLQdt/2)rho(t)
+    // -iLQrho=-i/hbar[H-ihbarP/M*D,rho], -iLRrho=-P/M*drho/dR, -iLPrho=-(F*drho/dP+drho/dP*F)/2
+    // derivatives are calculated by infinite order finite difference
     for (int iStep = 0; iStep <= TotalStep; iStep++)
     {
         const double Time = iStep * dt;
-        Steps << Time << '\n';
 
-        // calculate rho_t_diag = exp(-iH(diag)*t) * rho_0_diag,
-        // each diagonal element be the eigenvalue
-        for (int i = 0; i < dim; i++)
+        // for the output case
+        if (iStep % OutputStep == 0)
         {
-            rho_t_diag[i] = exp(Complex(0.0, -EigVal[i] * Time)) * rho_0_diag[i];
+            basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
+            // Steps << Time << '\n';            
+            // output the whole density matrix
+            Output << rho << endl;
+            basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
         }
-        // calculate rho_t_dia=C1*rho_t_diag
-        cblas_zgemv(CblasRowMajor, CblasNoTrans, dim, dim, &Alpha, EigVec.data(), dim, rho_t_diag, 1, &Beta, rho_t_dia, 1);
-        // calculate rho_t_adia=C2*rho_t_dia
-        cblas_zgemv(CblasRowMajor, CblasNoTrans, dim, dim, &Alpha, TransformationMatrix.data(), dim, rho_t_dia, 1, &Beta, rho_t_adia, 1);
-        
-        // output the whole density matrix; for diagonal only real part (imag==0)
-        for (int a = 0; a < NumPES; a++)
-        {
-            for (int b = 0; b < NumPES; b++)
-            {
-                for (int i = 0; i < NGrids; i++)
-                {
-                    for (int j = 0; j < NGrids; j++)
-                    {
-                        Output << ' ' << rho_t_adia[indexing(a, b, i, j, NGrids)].real();
-                    }
-                }
-                for (int i = 0; i < NGrids; i++)
-                {
-                    for (int j = 0; j < NGrids; j++)
-                    {
-                        Output << ' ' << rho_t_adia[indexing(a, b, i, j, NGrids)].real()
-                            << ' ' << rho_t_adia[indexing(a, b, i, j, NGrids)].imag();
-                    }
-                }
-            }
-        }
-        Output << '\n';        
 
-        
+        // evolve
+        // 1. Quantum Liouville, -iLQ*rho=-i/hbar[V-i*hbar*P/m*D, rho]
+        // for diabatic basis, D=0, so simply trans to adia basis
+        // exp(-iLQt)rho_dia=exp(-iVd t/hbar)*rho_adia*exp(iVd t/hbar), t=dt/2
+        quantum_liouville_propagation(rho, NGrids, GridPosition, GridMomentum, mass, dt / 2.0, Diabatic);
+        // 2. Classical position Liouville, -iLRrho=-P/M*drho/dR = -P/M*D_R*rho
+        // so exp(-iLRt)=exp(-i*(-iPD_R/M)*t), t=dt/2
+        classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
+        // 3. Classical Momentum Liouville, under force basis,
+        // -iLQrho=-(Fd*drho/dP+drho/dP*Fd)/2
+        // so exp(-iLQt)=exp(-i(-i*(Fdaa+Fdbb)*D_P/2)t)
+        // transform the density matrix to force basis
+        classical_momentum_liouville_propagator(rho, NGrids, GridPosition, dp, dt);
+        // 4. Classical position Liouville again
+        classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
+        // 5. Quantum Liouville again
+        quantum_liouville_propagation(rho, NGrids, GridPosition, GridMomentum, mass, dt / 2.0, Diabatic);
     }
     // after evolution, print time and frees the resources
     clog << "Finish evolution.\n" << show_time << endl;
@@ -211,18 +174,14 @@ int main(void)
     cout << p0; // */
     // model 2
     cout << log(p0 * p0 / 2.0 / mass);// */
-    calculate_popultion(NGrids, dx, dp, rho_t_adia, Population);
+    calculate_popultion(NGrids, dx, dp, rho, Population);
     for (int i = 0; i < NumPES; i++)
     {
         cout << ' ' << Population[i];
     }
     cout << '\n';
 
-    // end. free the memory.
-    delete[] rho_t_adia;
-    delete[] rho_t_dia;
-    delete[] rho_t_diag;
-    delete[] EigVal;    
+    // end. free the memory.    
     delete[] GridPosition;
     delete[] GridMomentum;
 	return 0;

@@ -11,6 +11,7 @@
 #include <iostream>
 #include <memory>
 #include <tuple>
+#include "pes.h"
 #include "matrix.h"
 
 // mathematical and physical constants
@@ -46,9 +47,6 @@ inline int sgn(const valtype& val)
 // returns (-1)^n
 int pow_minus_one(const int n);
 
-// indexing
-int indexing(const int a, const int b, const int i, const int j, const int NGrids);
-
 
 // I/O functions
 
@@ -61,13 +59,25 @@ ostream& show_time(ostream& os);
 
 // evolution related functions
 
-// initialize the 2d gaussian wavepacket, and normalize it
-void density_matrix_initialization(const int NGrids, const double* GridPosition, const double* GridMomentum, const double dx, const double dp, const double x0, const double p0, const double SigmaX, const double SigmaP, Complex* rho_adia);
-
-// construct the Liouville superoperator
-ComplexMatrix Liouville_construction(const int NGrids, const double* GridPosition, const double* GridMomentum, const double dx, const double dp, const double mass);
+// initialize the PWTDM (Partial Wigner-Transformed Density Matrix), and normalize it
+void density_matrix_initialization(const int NGrids, const double* GridPosition, const double* GridMomentum, const double dx, const double dp, const double x0, const double p0, const double SigmaX, const double SigmaP, ComplexMatrixMatrix& rho_adia);
 
 // calculate the population on each PES
-void calculate_popultion(const int NGrids, const double dx, const double dp, const Complex* rho_adia, double* Population);
+void calculate_popultion(const int NGrids, const double dx, const double dp, const ComplexMatrixMatrix& rho_adia, double* Population);
+
+// evolve the quantum liouville: exp(-iLQt)rho
+// -iLQrho=-i/hbar[V-i*hbar*P/M*D,rho]
+// input t should be dt/2
+void quantum_liouville_propagation(ComplexMatrixMatrix& rho, const int NGrids, const double* GridPosition, const double* GridMomentum, const double mass, const double dt, const Representation BasisOfRho);
+
+// evolve the classical position liouville: exp(-iLRt)rho
+// -iLRrho=-P/M*drho/dR=-i*P/M*(-i*DR)*rho
+// input t should be dt/2 as well
+void classical_position_liouville_propagator(ComplexMatrixMatrix& rho, const int NGrids, const double* GridMomentum, const double mass, const double dx, const double dt);
+
+// evolve the classical position liouville: exp(-iLRt)rho
+// -iLPrho=-1/2(F*drho/dP+drho/dP*F)=-i(Faa+Fbb)/2*(-i*DP)*rho
+// if under force basis. input t should be dt
+void classical_momentum_liouville_propagator(ComplexMatrixMatrix& rho, const int NGrids, const double* GridPosition, const double dp, const double dt);
 
 #endif // !GENERAL_H

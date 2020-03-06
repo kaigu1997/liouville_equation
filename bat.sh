@@ -26,6 +26,8 @@ Total time of evolution:
 100000.0
 Output period:
 100.0
+Upper limit of dt:
+0.1
 END_FILE
     ./dvr >> output 2>>log
     python plot.py
