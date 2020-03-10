@@ -59,6 +59,7 @@ int main(void)
     // and then do the cut off, e.g. 0.2493 -> 0.2, 1.5364 -> 1
     // and the number of grids are thus determined
     const double dx = cutoff(min(read_double(in), PlanckH / p0max / 5.0));
+    //const double dx = read_double(in);
     // NGrids: number of grids in [xmin, xmax], also in [pmin, pmax]
     const int NGrids = static_cast<int>(TotalPositionLength / dx) + 1;
     // momentum region is determined by fourier transformation:
@@ -127,7 +128,6 @@ int main(void)
     Output.sync_with_stdio(false);
     clog << "Finish diagonalization and memory allocation.\n" << show_time << endl;
 
-
     // evolve: Trotter expansion
     // rho(t+dt)=exp(-iLQdt/2)exp(-iLRdt/2)exp(-iLPdt)exp(-iLRdt/2)exp(-iLQdt/2)rho(t)
     // -iLQrho=-i/hbar[H-ihbarP/M*D,rho], -iLRrho=-P/M*drho/dR, -iLPrho=-(F*drho/dP+drho/dP*F)/2
@@ -135,12 +135,11 @@ int main(void)
     for (int iStep = 0; iStep <= TotalStep; iStep++)
     {
         const double Time = iStep * dt;
-
         // for the output case
         if (iStep % OutputStep == 0)
         {
             basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
-            // Steps << Time << '\n';            
+            Steps << Time << endl;
             // output the whole density matrix
             Output << rho << endl;
             basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);

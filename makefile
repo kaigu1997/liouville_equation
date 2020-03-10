@@ -1,20 +1,23 @@
-Compiler := icpc
-MakeFlags := -mkl -std=c++17 -Wall -Wextra -Wconversion -Wshadow -Werror -O3
+CXX := icpc
+WARNINGFLAGS := -Wall -Wextra -Wconversion -Wshadow
+CXXFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -O3 -g
+LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -O3 -Wl,-fuse-ld=gold
 Objects := matrix.o general.o pes.o main.o
 HeaderFile := matrix.h general.h pes.h
 
+.PHONY: all
 all: mqcl
 
 mqcl: ${Objects}
-	${Compiler} ${Objects} ${MakeFlags} -o mqcl
+	${CXX} ${LDFLAGS} ${Objects} -o mqcl
 main.o: main.cpp ${HeaderFile}
-	${Compiler} -c main.cpp ${MakeFlags} -g -o main.o
+	${CXX} ${CXXFLAGS} -c main.cpp -o main.o
 pes.o: pes.cpp ${HeaderFile}
-	${Compiler} -c pes.cpp ${MakeFlags} -g -o pes.o
+	${CXX} ${CXXFLAGS} -c pes.cpp -o pes.o
 general.o: general.cpp ${HeaderFile}
-	${Compiler} -c general.cpp ${MakeFlags} -g -o general.o
+	${CXX} ${CXXFLAGS} -c general.cpp -o general.o
 matrix.o: matrix.cpp matrix.h
-	${Compiler} -c matrix.cpp ${MakeFlags} -g -o matrix.o
+	${CXX} ${CXXFLAGS} -c matrix.cpp -o matrix.o
 
 .PHONY: clean
 clean:

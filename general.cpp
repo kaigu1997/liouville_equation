@@ -59,7 +59,6 @@ ostream& show_time(ostream& os)
 // initialize the PWTDM (Partial Wigner-Transformed Density Matrix), and normalize it
 void density_matrix_initialization(const int NGrids, const double* GridPosition, const double* GridMomentum, const double dx, const double dp, const double x0, const double p0, const double SigmaX, const double SigmaP, ComplexMatrixMatrix& rho_adia)
 {
-    // constant: NGrids^2
     // for non-[0][0] elements, the initial density matrix is zero
     // for ground state, it is a gaussian. rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x^2-(p-p0)^2/2sigma_p^2)/(2*pi*sigma_x*sigma_p)
     // NormFactor is for normalization
@@ -68,8 +67,8 @@ void density_matrix_initialization(const int NGrids, const double* GridPosition,
     {
         for (int j = 0; j < NGrids; j++)
         {
-            rho_adia[i][j][0][0] = exp(-(pow((GridPosition[i] - x0) / SigmaX, 2) - pow((GridMomentum[j] - p0) / SigmaP, 2)) / 2.0) / (2.0 * pi * SigmaX * SigmaP);
-            NormFactor =  pow(rho_adia[i][j][0][0].real(), 2) + pow(rho_adia[i][j][0][0].imag(), 2);
+            rho_adia[i][j][0][0] = exp(-(pow((GridPosition[i] - x0) / SigmaX, 2) + pow((GridMomentum[j] - p0) / SigmaP, 2)) / 2.0) / (2.0 * pi * SigmaX * SigmaP);
+            NormFactor += pow(rho_adia[i][j][0][0].real(), 2) + pow(rho_adia[i][j][0][0].imag(), 2);
         }
     }
     NormFactor *= dx * dp;
@@ -86,15 +85,13 @@ void density_matrix_initialization(const int NGrids, const double* GridPosition,
 // calculate the population on each PES
 void calculate_popultion(const int NGrids, const double dx, const double dp, const ComplexMatrixMatrix& rho_adia, double* Population)
 {
-    Complex InnerProduct;
-    const int NoPSGrids = NGrids * NGrids;
     // calculate the inner product of each PES
     for (int i = 0; i < NumPES; i++)
     {
         Population[i] = 0;
         for (int j = 0; j < NGrids; j++)
         {
-            for (int k = 0; j < NGrids; k++)
+            for (int k = 0; k < NGrids; k++)
             {
                 Population[i] += rho_adia[j][k][i][i].real();
             }
