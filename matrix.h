@@ -147,6 +147,7 @@ public:
 // class for density matrix;
 // outer matrix is grid point (Ri, Pj)
 // inner matrix is density matrix (a pes, b pes)
+// using dynamic memory management in C++17
 class ComplexMatrixMatrix
 {
 private:

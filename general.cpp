@@ -57,7 +57,7 @@ ostream& show_time(ostream& os)
 // evolution related function
 
 // initialize the PWTDM (Partial Wigner-Transformed Density Matrix), and normalize it
-void density_matrix_initialization(const int NGrids, const double* GridPosition, const double* GridMomentum, const double dx, const double dp, const double x0, const double p0, const double SigmaX, const double SigmaP, ComplexMatrixMatrix& rho_adia)
+void density_matrix_initialization(const int NGrids, const double* const GridPosition, const double* const GridMomentum, const double dx, const double dp, const double x0, const double p0, const double SigmaX, const double SigmaP, ComplexMatrixMatrix& rho_adia)
 {
     // for non-[0][0] elements, the initial density matrix is zero
     // for ground state, it is a gaussian. rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x^2-(p-p0)^2/2sigma_p^2)/(2*pi*sigma_x*sigma_p)
@@ -65,10 +65,12 @@ void density_matrix_initialization(const int NGrids, const double* GridPosition,
     double NormFactor = 0;
     for (int i = 0; i < NGrids; i++)
     {
+        const double& xi = GridPosition[i];
         for (int j = 0; j < NGrids; j++)
         {
-            rho_adia[i][j][0][0] = exp(-(pow((GridPosition[i] - x0) / SigmaX, 2) + pow((GridMomentum[j] - p0) / SigmaP, 2)) / 2.0) / (2.0 * pi * SigmaX * SigmaP);
-            NormFactor += pow(rho_adia[i][j][0][0].real(), 2) + pow(rho_adia[i][j][0][0].imag(), 2);
+            const double& pj = GridMomentum[j];
+            rho_adia[i][j][0][0] = exp(-(pow((xi - x0) / SigmaX, 2) + pow((pj - p0) / SigmaP, 2)) / 2.0) / (2.0 * pi * SigmaX * SigmaP);
+            NormFactor += rho_adia[i][j][0][0].real();
         }
     }
     NormFactor *= dx * dp;
@@ -83,20 +85,20 @@ void density_matrix_initialization(const int NGrids, const double* GridPosition,
 }
 
 // calculate the population on each PES
-void calculate_popultion(const int NGrids, const double dx, const double dp, const ComplexMatrixMatrix& rho_adia, double* Population)
+void calculate_popultion(const int NGrids, const double dx, const double dp, const ComplexMatrixMatrix& rho_adia, double* const Population)
 {
     // calculate the inner product of each PES
-    for (int i = 0; i < NumPES; i++)
+    for (int a = 0; a < NumPES; a++)
     {
-        Population[i] = 0;
-        for (int j = 0; j < NGrids; j++)
+        Population[a] = 0;
+        for (int i = 0; i < NGrids; i++)
         {
-            for (int k = 0; k < NGrids; k++)
+            for (int j = 0; j < NGrids; j++)
             {
-                Population[i] += rho_adia[j][k][i][i].real();
+                Population[a] += rho_adia[i][j][a][a].real();
             }
         }
-        Population[i] *= dx * dp;
+        Population[a] *= dx * dp;
     }
 }
 
@@ -119,10 +121,10 @@ static RealMatrix derivative(const int NGrids, const double delta)
 // calculate the eigenvalue/vector of -i*position_derivative matrix
 // i.e., to diagonalize the hermitian matrix -i*DR
 // C^T*exp(-iDR)*C is diagonal, C is the return matrix
-static ComplexMatrix diagonalize_derivative_x(const int NGrids, const double dx, double* eigenvalue)
+static ComplexMatrix diagonalize_derivative_x(const int NGrids, const double dx, double* const eigenvalue)
 {
     static ComplexMatrix TransformationMatrix = -1.0i * ComplexMatrix(derivative(NGrids, dx));
-    static double* EigVal;
+    static double* EigVal = nullptr;
     static int LastNGrids = NGrids;
     static double LastDx = dx;
     static bool FirstRun = true;
@@ -134,6 +136,7 @@ static ComplexMatrix diagonalize_derivative_x(const int NGrids, const double dx,
         {
             cerr << "UNABLE TO DIAGONALIZE THE POSITION LIOUVILLE" << endl;
         }
+        FirstRun == false;
     }
     else if (NGrids != LastNGrids || abs (dx - LastDx) > 1e-2 * dx)
     {
@@ -155,10 +158,10 @@ static ComplexMatrix diagonalize_derivative_x(const int NGrids, const double dx,
 // calculate the eigenvalue/vector of -i*momentum_derivative matrix
 // i.e., to diagonalize the hermitian matrix -i*DP
 // C^T*exp(-iDP)*C is diagonal, C is the return matrix
-static ComplexMatrix diagonalize_derivative_p(const int NGrids, const double dp, double* eigenvalue)
+static ComplexMatrix diagonalize_derivative_p(const int NGrids, const double dp, double* const eigenvalue)
 {
     static ComplexMatrix TransformationMatrix = -1.0i * ComplexMatrix(derivative(NGrids, dp));
-    static double* EigVal;
+    static double* EigVal = nullptr;
     static int LastNGrids = NGrids;
     static double LastDp = dp;
     static bool FirstRun = true;
@@ -170,6 +173,7 @@ static ComplexMatrix diagonalize_derivative_p(const int NGrids, const double dp,
         {
             cerr << "UNABLE TO DIAGONALIZE THE POSITION LIOUVILLE" << endl;
         }
+        FirstRun == false;
     }
     else if (NGrids != LastNGrids || abs (dp - LastDp) > 1e-2 * dp)
     {
@@ -188,10 +192,34 @@ static ComplexMatrix diagonalize_derivative_p(const int NGrids, const double dp,
     return TransformationMatrix;
 }
 
+// calculate average energy, x, and p
+tuple<double, double, double> calculate_average(const ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition, const double* const GridMomentum, const double mass, const double dx, const double dp, const Representation BasisOfRho)
+{
+    double energy = 0, x = 0, p = 0;
+    // calculate: <B>=sum_{i,j}(B(xi,pj)*P(xi,pj))*dx*dp
+    for (int i = 0; i < NGrids; i++)
+    {
+        const double& xi = GridPosition[i];
+        for (int j = 0; j < NGrids; j++)
+        {
+            const double& pj = GridMomentum[j];
+            // loop over diagonal elements only
+            for (int a = 0; a < NumPES; a++)
+            {
+                const double& ppl = rho[i][j][a][a].real();
+                energy += ppl * (potential[BasisOfRho](xi)[a][a] + pj * pj / 2.0 / mass);
+                x += ppl * xi;
+                p += ppl * pj;
+            }
+        }
+    }
+    return make_tuple(energy * dx * dp, x * dx * dp, p * dx * dp);
+}
+
 // evolve the quantum liouville: exp(-iLQt)rho
 // -iLQrho=-i/hbar[V-i*hbar*P/Mass*D,rho]
 // input t should be dt/2
-void quantum_liouville_propagation(ComplexMatrixMatrix& rho, const int NGrids, const double* GridPosition, const double* GridMomentum, const double mass, const double dt, const Representation BasisOfRho)
+void quantum_liouville_propagation(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition, const double* const GridMomentum, const double mass, const double dt, const Representation BasisOfRho)
 {
     if (BasisOfRho == Diabatic)
     {
@@ -200,7 +228,7 @@ void quantum_liouville_propagation(ComplexMatrixMatrix& rho, const int NGrids, c
         basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
         for (int i = 0; i < NGrids; i++)
         {
-            const ComplexMatrix H = ComplexMatrix(potential[Adiabatic](GridPosition[i]));
+            const ComplexMatrix& H = ComplexMatrix(potential[Adiabatic](GridPosition[i]));
             for (int j = 0; j < NGrids; j++)
             {
                 for (int a = 0; a < NumPES; a++)
@@ -223,8 +251,8 @@ void quantum_liouville_propagation(ComplexMatrixMatrix& rho, const int NGrids, c
         // =C^T*exp(-iH'd t/hbar)*C*rho*C^T*exp(iH'd t/hbar)*C
         for (int i = 0; i < NGrids; i++)
         {
-            const ComplexMatrix H = potential[BasisOfRho](GridPosition[i]);
-            const ComplexMatrix D = coupling[BasisOfRho](GridPosition[i]);
+            const ComplexMatrix& H = potential[BasisOfRho](GridPosition[i]);
+            const ComplexMatrix& D = coupling[BasisOfRho](GridPosition[i]);
             for (int j = 0; j < NGrids; j++)
             {
                 ComplexMatrix EigVec = H - Complex(0.0, hbar * GridMomentum[j] / mass) * D;
@@ -263,14 +291,14 @@ void quantum_liouville_propagation(ComplexMatrixMatrix& rho, const int NGrids, c
 // evolve the classical position liouville: exp(-iLRt)rho
 // -iLRrho=-P/M*drho/dR=-i*P/M*(-i*DR)*rho
 // input t should be dt/2 as well
-void classical_position_liouville_propagator(ComplexMatrixMatrix& rho, const int NGrids, const double* GridMomentum, const double mass, const double dx, const double dt)
+void classical_position_liouville_propagator(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridMomentum, const double mass, const double dx, const double dt)
 {
     double* EigVal = new double[NGrids];
-    ComplexMatrix EigVec = diagonalize_derivative_x(NGrids, dx, EigVal);
+    const ComplexMatrix& EigVec = diagonalize_derivative_x(NGrids, dx, EigVal);
     for (int j = 0; j < NGrids; j++)
     {
         // the evolving matrix is the same for a and b, so construct and diagonalize here
-        const double p = GridMomentum[j];
+        const double& p = GridMomentum[j];
         for (int a = 0; a < NumPES; a++)
         {
             for (int b = 0; b < NumPES; b++)
@@ -316,15 +344,15 @@ void classical_position_liouville_propagator(ComplexMatrixMatrix& rho, const int
 // evolve the classical position liouville: exp(-iLRt)rho
 // -iLPrho=-1/2(F*drho/dP+drho/dP*F)=-i(Faa+Fbb)/2*(-i*DP)*rho
 // if under force basis. input t should be dt
-void classical_momentum_liouville_propagator(ComplexMatrixMatrix& rho, const int NGrids, const double* GridPosition, const double dp, const double dt)
+void classical_momentum_liouville_propagator(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition, const double dp, const double dt)
 {
     basis_transform[Diabatic][ForceBasis](rho, NGrids, GridPosition);
     double* EigVal = new double[NGrids];
-    ComplexMatrix EigVec = diagonalize_derivative_p(NGrids, dp, EigVal);
+    const ComplexMatrix& EigVec = diagonalize_derivative_p(NGrids, dp, EigVal);
     for (int i = 0; i < NGrids; i++)
     {
         // the eigen forces
-        const RealMatrix F = force[ForceBasis](GridPosition[i]);
+        const RealMatrix& F = force[ForceBasis](GridPosition[i]);
         for (int a = 0; a < NumPES; a++)
         {
             for (int b = 0; b < NumPES; b++)

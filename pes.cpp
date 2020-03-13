@@ -106,7 +106,7 @@ static RealMatrix diabatic_to_adiabatic_at_one_point(const double x)
 {
     RealMatrix EigVec = diabatic_potential(x);
     double EigVal[NumPES];
-    if (LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'N', 'U', NumPES, EigVec.data(), NumPES, EigVal) != 0)
+    if (LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'V', 'U', NumPES, EigVec.data(), NumPES, EigVal) != 0)
     {
         cerr << "UNABLE TO CALCULATE ADIABATIC REPRESENTATION AT " << x << endl;
         exit(200);
@@ -174,7 +174,7 @@ static RealMatrix diabatic_to_force_basis_at_one_point(const double x)
 {
     RealMatrix EigVec = diabatic_force(x);
     double EigVal[NumPES];
-    if (LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'N', 'U', NumPES, EigVec.data(), NumPES, EigVal) != 0)
+    if (LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'V', 'U', NumPES, EigVec.data(), NumPES, EigVal) != 0)
     {
         cerr << "UNABLE TO CALCULATE ADIABATIC REPRESENTATION AT " << x << endl;
         exit(202);
@@ -255,76 +255,208 @@ extern const function<RealMatrix(const double)> coupling[3] = { diabatic_couplin
 
 
 // transform the whole matrix
-static void do_nothing(ComplexMatrixMatrix& rho, const int NGrids, const double* GridPosition)
+static void do_nothing(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
 }
-static void diabatic_to_adiabatic(ComplexMatrixMatrix& rho_dia, const int NGrids, const double* GridPosition)
+static void diabatic_to_adiabatic(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
+    static bool FirstRun = true;
+    static ComplexMatrix* TransformMatrices = nullptr;
+    static int LastNGrids = NGrids;
+    static const double* LastGridPosition = GridPosition;
+    static allocator<ComplexMatrix> MatrixAllocator;
+    if (FirstRun == true)
+    {
+        // for the first run, do diagonalization
+        TransformMatrices = MatrixAllocator.allocate(NGrids);
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        FirstRun = false;
+    }
+    else if(NGrids != LastNGrids || LastGridPosition != GridPosition)
+    {
+        // changed case, re-diagonalization
+        destroy(TransformMatrices, TransformMatrices + LastNGrids);
+        if (NGrids != LastNGrids)
+        {
+            MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
+            TransformMatrices = MatrixAllocator.allocate(NGrids);
+        }
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        LastNGrids = NGrids;
+        LastGridPosition = GridPosition;
+    }
     Complex MatTrans[NumPES * NumPES];
     for (int i = 0; i < NGrids; i++)
     {
-        const ComplexMatrix TransformationMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
+        const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
         for (int j = 0; j < NGrids; j++)
         {
-            cblas_zhemm(CblasRowMajor, CblasLeft, CblasUpper, NumPES, NumPES, &Alpha, rho_dia[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, MatTrans, NumPES);
-            cblas_zgemm(CblasRowMajor, CblasConjTrans, CblasNoTrans, NumPES, NumPES, NumPES, &Alpha, TransformationMatrix.data(), NumPES, MatTrans, NumPES, &Beta, rho_dia[i][j].data(), NumPES);
-            rho_dia[i][j].hermitize();
+            cblas_zhemm(CblasRowMajor, CblasLeft, CblasUpper, NumPES, NumPES, &Alpha, rho[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, MatTrans, NumPES);
+            cblas_zgemm(CblasRowMajor, CblasConjTrans, CblasNoTrans, NumPES, NumPES, NumPES, &Alpha, TransformationMatrix.data(), NumPES, MatTrans, NumPES, &Beta, rho[i][j].data(), NumPES);
+            rho[i][j].hermitize();
         }
     }
 }
-static void diabatic_to_force_basis(ComplexMatrixMatrix& rho_dia, const int NGrids, const double* GridPosition)
+static void diabatic_to_force_basis(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
+    static bool FirstRun = true;
+    static ComplexMatrix* TransformMatrices = nullptr;
+    static int LastNGrids = NGrids;
+    static const double* LastGridPosition = GridPosition;
+    static allocator<ComplexMatrix> MatrixAllocator;
+    if (FirstRun == true)
+    {
+        // for the first run, do diagonalization
+        TransformMatrices = MatrixAllocator.allocate(NGrids);
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        FirstRun = false;
+    }
+    else if(NGrids != LastNGrids || LastGridPosition != GridPosition)
+    {
+        // changed case, re-diagonalization
+        destroy(TransformMatrices, TransformMatrices + LastNGrids);
+        if (NGrids != LastNGrids)
+        {
+            MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
+            TransformMatrices = MatrixAllocator.allocate(NGrids);
+        }
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        LastNGrids = NGrids;
+        LastGridPosition = GridPosition;
+    }
     Complex MatTrans[NumPES * NumPES];
     for (int i = 0; i < NGrids; i++)
     {
-        const ComplexMatrix TransformationMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
+        const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
         for (int j = 0; j < NGrids; j++)
         {
-            cblas_zhemm(CblasRowMajor, CblasLeft, CblasUpper, NumPES, NumPES, &Alpha, rho_dia[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, MatTrans, NumPES);
-            cblas_zgemm(CblasRowMajor, CblasConjTrans, CblasNoTrans, NumPES, NumPES, NumPES, &Alpha, TransformationMatrix.data(), NumPES, MatTrans, NumPES, &Beta, rho_dia[i][j].data(), NumPES);
-            rho_dia[i][j].hermitize();
+            cblas_zhemm(CblasRowMajor, CblasLeft, CblasUpper, NumPES, NumPES, &Alpha, rho[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, MatTrans, NumPES);
+            cblas_zgemm(CblasRowMajor, CblasConjTrans, CblasNoTrans, NumPES, NumPES, NumPES, &Alpha, TransformationMatrix.data(), NumPES, MatTrans, NumPES, &Beta, rho[i][j].data(), NumPES);
+            rho[i][j].hermitize();
         }
     }
 }
-static void adiabatic_to_diabatic(ComplexMatrixMatrix& rho_adia, const int NGrids, const double* GridPosition)
+static void adiabatic_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
+    static bool FirstRun = true;
+    static ComplexMatrix* TransformMatrices = nullptr;
+    static int LastNGrids = NGrids;
+    static const double* LastGridPosition = GridPosition;
+    static allocator<ComplexMatrix> MatrixAllocator;
+    if (FirstRun == true)
+    {
+        // for the first run, do diagonalization
+        TransformMatrices = MatrixAllocator.allocate(NGrids);
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        FirstRun = false;
+    }
+    else if(NGrids != LastNGrids || LastGridPosition != GridPosition)
+    {
+        // changed case, re-diagonalization
+        destroy(TransformMatrices, TransformMatrices + LastNGrids);
+        if (NGrids != LastNGrids)
+        {
+            MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
+            TransformMatrices = MatrixAllocator.allocate(NGrids);
+        }
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        LastNGrids = NGrids;
+        LastGridPosition = GridPosition;
+    }
     Complex TransMat[NumPES * NumPES];
     for (int i = 0; i < NGrids; i++)
     {
-        const ComplexMatrix TransformationMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
+        const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
         for (int j = 0; j < NGrids; j++)
         {
-            cblas_zhemm(CblasRowMajor, CblasRight, CblasUpper, NumPES, NumPES, &Alpha, rho_adia[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, TransMat, NumPES);
-            cblas_zgemm(CblasRowMajor, CblasNoTrans, CblasConjTrans, NumPES, NumPES, NumPES, &Alpha, TransMat, NumPES, TransformationMatrix.data(), NumPES, &Beta, rho_adia[i][j].data(), NumPES);
-            rho_adia[i][j].hermitize();
+            cblas_zhemm(CblasRowMajor, CblasRight, CblasUpper, NumPES, NumPES, &Alpha, rho[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, TransMat, NumPES);
+            cblas_zgemm(CblasRowMajor, CblasNoTrans, CblasConjTrans, NumPES, NumPES, NumPES, &Alpha, TransMat, NumPES, TransformationMatrix.data(), NumPES, &Beta, rho[i][j].data(), NumPES);
+            rho[i][j].hermitize();
         }
     }
 }
-static void adiabatic_to_force_basis(ComplexMatrixMatrix& rho_adia, const int NGrids, const double* GridPosition)
+static void adiabatic_to_force_basis(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
-    adiabatic_to_diabatic(rho_adia, NGrids, GridPosition);
-    diabatic_to_force_basis(rho_adia, NGrids, GridPosition);
+    adiabatic_to_diabatic(rho, NGrids, GridPosition);
+    diabatic_to_force_basis(rho, NGrids, GridPosition);
 }
-static void force_basis_to_diabatic(ComplexMatrixMatrix& rho_force, const int NGrids, const double* GridPosition)
+static void force_basis_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
+    static bool FirstRun = true;
+    static ComplexMatrix* TransformMatrices = nullptr;
+    static int LastNGrids = NGrids;
+    static const double* LastGridPosition = GridPosition;
+    static allocator<ComplexMatrix> MatrixAllocator;
+    if (FirstRun == true)
+    {
+        // for the first run, do diagonalization
+        TransformMatrices = MatrixAllocator.allocate(NGrids);
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        FirstRun = false;
+    }
+    else if(NGrids != LastNGrids || LastGridPosition != GridPosition)
+    {
+        // changed case, re-diagonalization
+        destroy(TransformMatrices, TransformMatrices + LastNGrids);
+        if (NGrids != LastNGrids)
+        {
+            MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
+            TransformMatrices = MatrixAllocator.allocate(NGrids);
+        }
+        for (int i = 0; i < NGrids; i++)
+        {
+            const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
+            uninitialized_copy(&TransformMatrix, &TransformMatrix + 1, TransformMatrices + i);
+        }
+        LastNGrids = NGrids;
+        LastGridPosition = GridPosition;
+    }
     Complex TransMat[NumPES * NumPES];
     for (int i = 0; i < NGrids; i++)
     {
-        const ComplexMatrix TransformationMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
+        const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
         for (int j = 0; j < NGrids; j++)
         {
-            cblas_zhemm(CblasRowMajor, CblasRight, CblasUpper, NumPES, NumPES, &Alpha, rho_force[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, TransMat, NumPES);
-            cblas_zgemm(CblasRowMajor, CblasNoTrans, CblasConjTrans, NumPES, NumPES, NumPES, &Alpha, TransMat, NumPES, TransformationMatrix.data(), NumPES, &Beta, rho_force[i][j].data(), NumPES);
-            rho_force[i][j].hermitize();
+            cblas_zhemm(CblasRowMajor, CblasRight, CblasUpper, NumPES, NumPES, &Alpha, rho[i][j].data(), NumPES, TransformationMatrix.data(), NumPES, &Beta, TransMat, NumPES);
+            cblas_zgemm(CblasRowMajor, CblasNoTrans, CblasConjTrans, NumPES, NumPES, NumPES, &Alpha, TransMat, NumPES, TransformationMatrix.data(), NumPES, &Beta, rho[i][j].data(), NumPES);
+            rho[i][j].hermitize();
         }
     }
 }
-static void force_basis_to_adiabatic(ComplexMatrixMatrix& rho_force, const int NGrids, const double* GridPosition)
+static void force_basis_to_adiabatic(ComplexMatrixMatrix& rho, const int NGrids, const double* const GridPosition)
 {
-    force_basis_to_diabatic(rho_force, NGrids, GridPosition);
-    diabatic_to_adiabatic(rho_force, NGrids, GridPosition);
+    force_basis_to_diabatic(rho, NGrids, GridPosition);
+    diabatic_to_adiabatic(rho, NGrids, GridPosition);
 }
-extern const function<void(ComplexMatrixMatrix&, int, const double*)> basis_transform[3][3] = 
+extern const function<void(ComplexMatrixMatrix&, int, const double* const)> basis_transform[3][3] = 
 {
     { do_nothing, diabatic_to_adiabatic, diabatic_to_force_basis },
     { adiabatic_to_diabatic, do_nothing, adiabatic_to_force_basis },

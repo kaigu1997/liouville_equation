@@ -21,13 +21,14 @@ matrix.o: matrix.cpp matrix.h
 
 .PHONY: clean
 clean:
-	-rm *.o
+	-\rm *.o
 
 .PHONY: clean_result
 clean_result:
-	-rm log output *.txt *.png *.gif
+	-\rm log output *.txt *.png *.gif
 
 .PHONY: git
 git:
+	if [ ! -d .git ]; then git init; fi
 	git add *.h *.cpp makefile *.sh *.py .gitignore
 

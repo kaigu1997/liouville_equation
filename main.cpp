@@ -19,6 +19,7 @@
 #include <iostream>
 #include <mkl.h>
 #include <numeric>
+#include <tuple>
 #include "general.h"
 #include "pes.h"
 #include "matrix.h"
@@ -58,7 +59,7 @@ int main(void)
     // read grid spacing, should be "~ 4 to 5 grids per de Broglie wavelength"
     // and then do the cut off, e.g. 0.2493 -> 0.2, 1.5364 -> 1
     // and the number of grids are thus determined
-    const double dx = cutoff(min(read_double(in), PlanckH / p0max / 5.0));
+    const double dx = cutoff(min(read_double(in), PlanckH / p0max / 4.0));
     //const double dx = read_double(in);
     // NGrids: number of grids in [xmin, xmax], also in [pmin, pmax]
     const int NGrids = static_cast<int>(TotalPositionLength / dx) + 1;
@@ -88,14 +89,15 @@ int main(void)
         GridMomentum[i] = pmin + i * dp;
         Momentum << GridMomentum[i] << '\n';
     }
-    clog << "dx = " << dx << ", dp = " << dp << ",\n"
-        << "and there is overall " << NGrids << " grids\n"
-        << "in [" << xmin << ", " << xmax <<"] and [" << pmin << ", " << pmax << "].\n";
+    clog << "dx = " << dx << ", dp = " << dp << ", and there is overall " << NGrids << " grids\n"
+        << "in [" << xmin << ", " << xmax <<"] for x and [" << pmin << ", " << pmax << "] for p.\n";
     Position.close();
     Momentum.close();
 
+    // total time is based on the length/speed*coe
+    // being a rough approx, corrected during running
+    const double TotalTime = TotalPositionLength / (p0 / mass) * 2.0;
     // read evolving time and output time, in unit of a.u.
-    const double TotalTime = read_double(in);
     const double OutputTime = read_double(in);
     const double dt = cutoff(read_double(in));
     // finish reading
@@ -105,17 +107,17 @@ int main(void)
     const int OutputStep = static_cast<int>(OutputTime / dt);
     clog << "dt = " << dt << ", and there is overall " << TotalStep << " time steps." << endl;
 
+    // population on each PES, and the population on each PES at last output moment
+    double Population[NumPES] = {1.0};
     // memory allocation: density matrix
     ComplexMatrixMatrix rho(NGrids, NumPES);
     // construct the initial adiabatic PWTDM: gaussian on the ground state PES
     // rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x-(p-p0)^2/2sigma_p)/(pi*hbar)
     // initially in the adiabatic basis
     density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho);
-    // then transform to diabatic basis
     basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
 
-    // population on each PES, and the population on each PES at last output moment
-    double Population[NumPES] = {1.0};
+
     // Steps contains when is each step, also one in a line
     ofstream Steps("t.txt");
     Steps.sync_with_stdio(false);
@@ -125,6 +127,8 @@ int main(void)
     // (continue) rho[0][1](x0,p0,t0), ... rho[1][0](x0,p0,t0), ... rho[n][n](xN,pN,t0)
     // (new line) rho[0][0](x0,p0,t1), ...
     ofstream Output("phase.txt");
+    // log contains average <E>, <x>, and <p> with corresponding time
+    ofstream Log("averages.txt");
     Output.sync_with_stdio(false);
     clog << "Finish diagonalization and memory allocation.\n" << show_time << endl;
 
@@ -142,6 +146,20 @@ int main(void)
             Steps << Time << endl;
             // output the whole density matrix
             Output << rho << endl;
+
+            // calculate <E>, <x>, <p> ...
+            // using structured binding in C++17
+            const auto& [E_bar, x_bar, p_bar] = calculate_average(rho, NGrids, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+            // ... then output
+            Log << Time << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar << '\n';
+            // compare with last time and see the difference
+            static double LastE = E_bar, LastX = x_bar, LastP = p_bar;
+            if ((x_bar - LastX) * p0 < 0)
+            {
+                basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
+                // the wavepacket changes its direction, stop evolving
+                break;
+            }
             basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
         }
 
@@ -167,6 +185,7 @@ int main(void)
     clog << "Finish evolution.\n" << show_time << endl;
     Steps.close();
     Output.close();
+    Log.close();
 
     // print the final info
     /*/ model 1 and 3

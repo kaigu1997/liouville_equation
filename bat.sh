@@ -22,19 +22,18 @@ Right boundary:
 20.0
 Upper limit of dx:
 0.1
-Total time of evolution:
-20000.0
 Output period:
-100.0
+50.0
 Upper limit of dt:
-1.0
+0.25
 END_FILE
     ./mqcl >> output 2>>log
     python plot.py
-    for f in psi.*
+    for f in phase.*
     do
-        mv -- "$f" "${i}.${f#psi.}"
+        mv -- "$f" "${i}.${f#phase.}"
     done
+    mv -- "averages.txt" "${i}.log"
     echo "Finished 10.0 * lnE = $i.0"
     echo $(date +"%Y-%m-%d %H:%M:%S.%N")
 done
