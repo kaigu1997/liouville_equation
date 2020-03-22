@@ -1,7 +1,7 @@
 #!/bin/bash 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
-#SBATCH --time=11:59:59
+#SBATCH --time=23:59:59
 #SBATCH --job-name=mqcl
 #SBATCH --output=out
 #SBATCH --error=log
@@ -10,7 +10,7 @@
  
 cd $SLURM_SUBMIT_DIR
 
-module load intel
+module load NiaEnv/2019b intel
 
 # begins here
 make

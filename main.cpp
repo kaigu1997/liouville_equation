@@ -107,17 +107,6 @@ int main(void)
     const int OutputStep = static_cast<int>(OutputTime / dt);
     clog << "dt = " << dt << ", and there is overall " << TotalStep << " time steps." << endl;
 
-    // population on each PES, and the population on each PES at last output moment
-    double Population[NumPES] = {1.0};
-    // memory allocation: density matrix
-    ComplexMatrixMatrix rho(NGrids, NumPES);
-    // construct the initial adiabatic PWTDM: gaussian on the ground state PES
-    // rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x-(p-p0)^2/2sigma_p)/(pi*hbar)
-    // initially in the adiabatic basis
-    density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho);
-    basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
-
-
     // Steps contains when is each step, also one in a line
     ofstream Steps("t.txt");
     Steps.sync_with_stdio(false);
@@ -127,42 +116,41 @@ int main(void)
     // (continue) rho[0][1](x0,p0,t0), ... rho[1][0](x0,p0,t0), ... rho[n][n](xN,pN,t0)
     // (new line) rho[0][0](x0,p0,t1), ...
     ofstream Output("phase.txt");
+    Output.sync_with_stdio(false);
     // log contains average <E>, <x>, and <p> with corresponding time
     ofstream Log("averages.txt");
-    Output.sync_with_stdio(false);
+    Log.sync_with_stdio(false);
+
+    // population on each PES, and the population on each PES at last output moment
+    double Population[NumPES] = {1.0};
+    // memory allocation: density matrix
+    ComplexMatrixMatrix rho(NGrids, NumPES);
+    // construct the initial adiabatic PWTDM: gaussian on the ground state PES
+    // rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x-(p-p0)^2/2sigma_p)/(pi*hbar)
+    // initially in the adiabatic basis
+    density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho);
+    // after initialization, calculate the averages and populations, and output
+    // using structured binding in C++17
+    Steps << 0 << endl;
+    Output << rho << endl;
+    auto& [LastE, LastX, LastP] = calculate_average(rho, NGrids, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+    Log << 0 << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar;
+    calculate_popultion(NGrids, dx, dp, rho, Population);
+    for (int i = 0; i < NumPES; i++)
+    {
+        Log << ' ' << Population[i];
+    }
+    Log << endl;
+    // transform to diabatic basis for evolution
+    basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
     clog << "Finish diagonalization and memory allocation.\n" << show_time << endl;
 
     // evolve: Trotter expansion
     // rho(t+dt)=exp(-iLQdt/2)exp(-iLRdt/2)exp(-iLPdt)exp(-iLRdt/2)exp(-iLQdt/2)rho(t)
     // -iLQrho=-i/hbar[H-ihbarP/M*D,rho], -iLRrho=-P/M*drho/dR, -iLPrho=-(F*drho/dP+drho/dP*F)/2
     // derivatives are calculated by infinite order finite difference
-    for (int iStep = 0; iStep <= TotalStep; iStep++)
+    for (int iStep = 1; iStep <= TotalStep; iStep++)
     {
-        const double Time = iStep * dt;
-        // for the output case
-        if (iStep % OutputStep == 0)
-        {
-            basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
-            Steps << Time << endl;
-            // output the whole density matrix
-            Output << rho << endl;
-
-            // calculate <E>, <x>, <p> ...
-            // using structured binding in C++17
-            const auto& [E_bar, x_bar, p_bar] = calculate_average(rho, NGrids, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
-            // ... then output
-            Log << Time << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar << '\n';
-            // compare with last time and see the difference
-            static double LastE = E_bar, LastX = x_bar, LastP = p_bar;
-            if ((x_bar - LastX) * p0 < 0)
-            {
-                basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
-                // the wavepacket changes its direction, stop evolving
-                break;
-            }
-            basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
-        }
-
         // evolve
         // 1. Quantum Liouville, -iLQ*rho=-i/hbar[V-i*hbar*P/m*D, rho]
         // for diabatic basis, D=0, so simply trans to adia basis
@@ -180,6 +168,41 @@ int main(void)
         classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
         // 5. Quantum Liouville again
         quantum_liouville_propagation(rho, NGrids, GridPosition, GridMomentum, mass, dt / 2.0, Diabatic);
+
+        // for the output case
+        if (iStep % OutputStep == 0)
+        {
+            const double Time = iStep * dt;
+            basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
+            Steps << Time << endl;
+            // output the whole density matrix
+            Output << rho << endl;
+
+            // calculate <E>, <x>, <p> ...
+            // using structured binding in C++17
+            const auto& [E_bar, x_bar, p_bar] = calculate_average(rho, NGrids, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+            // ... then output
+            Log << Time << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar;
+            calculate_popultion(NGrids, dx, dp, rho, Population);
+            for (int i = 0; i < NumPES; i++)
+            {
+                Log << ' ' << Population[i];
+            }
+            Log << endl;
+            // compare with last time and see the difference
+            if ((x_bar - LastX) * p0 < 0)
+            {
+                basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
+                // the wavepacket changes its direction, stop evolving
+                break;
+            }
+            // set the last values
+            LastE = E_bar;
+            LastX = x_bar;
+            LastP = p_bar;
+            // transform to diabatic basis again for next revolution
+            basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
+        }
     }
     // after evolution, print time and frees the resources
     clog << "Finish evolution.\n" << show_time << endl;

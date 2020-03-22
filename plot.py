@@ -26,7 +26,7 @@ dp = (p[len(p)-1] - p[0]) / (len(p) - 1)
 xv, pv = np.meshgrid(x, p) # transform to vector for plotting
 # pick the desired colormap, sensible levels, and define a normalization
 # instance which takes data values and translates those into levels.
-levels = MaxNLocator(nbins=15).tick_values(-1, 1) # color region
+levels = MaxNLocator(nbins=15).tick_values(-0.5, 0.5) # color region
 cmap = plt.get_cmap('RdBu') # the kind of color: red-white-blue
 norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True) # the mapping rule
 

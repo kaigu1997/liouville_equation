@@ -1,7 +1,7 @@
 CXX := icpc
 WARNINGFLAGS := -Wall -Wextra -Wconversion -Wshadow
-CXXFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -O3 -g
-LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -O3 -Wl,-fuse-ld=gold
+CXXFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -fast -g
+LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -fast -Wl,-fuse-ld=gold
 Objects := matrix.o general.o pes.o main.o
 HeaderFile := matrix.h general.h pes.h
 
@@ -29,6 +29,5 @@ clean_result:
 
 .PHONY: git
 git:
-	if [ ! -d .git ]; then git init; fi
 	git add *.h *.cpp makefile *.sh *.py .gitignore
 

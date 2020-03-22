@@ -1,10 +1,16 @@
+# ELF files
 *.o
+mqcl
+
+# output and input files
 *.txt
 *.png
 *.gif
-log
-output
+*log
+out*
 input
-mqcl
-.vscode/
 *result*/
+
+# IDE configuration
+.vscode/
+.vs/
