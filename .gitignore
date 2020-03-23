@@ -12,5 +12,9 @@ input
 *result*/
 
 # IDE configuration
-.vscode/
-.vs/
+.vs*/
+
+# Doxygen document
+Doxyfile*
+html/
+latex/

@@ -1,14 +1,14 @@
-// The purpose of this program is to give
-// an exact solution of quantum mechanic problem
-// using Mixed Quantum-Classical Liouville Equation
-// (MQCLE) by Discrete Variable Representation (DVR).
-// This program could be used to solve the MQCLE
-// under diabatic/adiabatic/force basis, etc.
-// It requires C++17 or newer C++ standards when compiling
-// and needs connection to Intel(R) Math Kernel Library
-// (MKL) by whatever methods: icpc/msvc/gcc -I.
-// Error code criteria: 1XX for matrix, 
-// 2XX for pes, 3XX for general, and 4XX for main.
+/// @file main.cpp
+/// @brief The main driver
+/// 
+/// The purpose of this program is to give
+/// an exact solution of quantum mechanic problem
+/// using Mixed Quantum-Classical Liouville Equation
+/// (MQCLE) by Discrete Variable Representation (DVR).
+/// It requires C++17 or newer C++ standards when compiling
+/// and needs connection to Intel(R) Math Kernel Library (MKL).
+/// Error code criteria: 1XX for matrix, 
+/// 2XX for pes, 3XX for general, and 4XX for main.
 
 #include <chrono>
 #include <ctime>
@@ -25,6 +25,8 @@
 #include "matrix.h"
 using namespace std;
 
+
+/// The main driver
 int main(void)
 {
     // initialize: read input and calculate cooresponding constants
@@ -211,10 +213,14 @@ int main(void)
     Log.close();
 
     // print the final info
-    /*/ model 1 and 3
-    cout << p0; // */
-    // model 2
-    cout << log(p0 * p0 / 2.0 / mass);// */
+    if (TestModel == DAC)
+    {
+        cout << log(p0 * p0 / 2.0 / mass);
+    }
+    else
+    {
+        cout << p0;
+    }
     calculate_popultion(NGrids, dx, dp, rho, Population);
     for (int i = 0; i < NumPES; i++)
     {

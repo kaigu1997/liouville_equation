@@ -1,4 +1,5 @@
-// implemetation of matrix.h
+/// @file matrix.cpp
+/// @brief Implemetation of matrix.h
 
 #include <algorithm>
 #include <cstring>
@@ -9,16 +10,16 @@
 #include "matrix.h"
 using namespace std;
 
-// transfrom a double array to a complex array
-// by using lambda expression
+/// Transfrom a double array to a complex array by using lambda expression
 void real_to_complex(const double* da, Complex* ca, const int length)
 {
     generate(ca, ca + length, [i = 0, da](void)mutable->Complex{ return da[i++]; });
 }
 
 
+
 // RealMatrix functions
-// default constructor with all zero
+
 RealMatrix::RealMatrix(const int size)
 	: length(size), nelements(length * length), content(new double*[length])
 {
@@ -30,7 +31,6 @@ RealMatrix::RealMatrix(const int size)
 	memset(content[0], 0, nelements * sizeof(double));
 }
 
-// copy constructor
 RealMatrix::RealMatrix(const RealMatrix& matrix)
 	: length(matrix.length), nelements(matrix.nelements), content(new double*[length])
 {
@@ -42,7 +42,6 @@ RealMatrix::RealMatrix(const RealMatrix& matrix)
 	copy(matrix.content[0], matrix.content[0] + nelements, content[0]);
 }
 
-// quasi copy constructor
 RealMatrix::RealMatrix(const int size, const double* array)
 	: length(size), nelements(length * length), content(new double*[length])
 {
@@ -54,7 +53,6 @@ RealMatrix::RealMatrix(const int size, const double* array)
 	copy(array, array + nelements, content[0]);
 }
 
-// one element is give number and the other are all zero
 RealMatrix::RealMatrix(const int size, const Index& idx, const double& val)
 	:length(size), nelements(length * length), content(new double*[length])
 {
@@ -67,36 +65,37 @@ RealMatrix::RealMatrix(const int size, const Index& idx, const double& val)
 	content[idx.first][idx.second] = val;
 }
 
-// destructor
 RealMatrix::~RealMatrix(void)
 {
 	delete[] content[0];
 	delete[] content;
 }
 
-// the size of the matrix
+
 int RealMatrix::length_of_matrix(void) const
 {
 	return length;
 }
 
-// direct access to internal data
 double* RealMatrix::data(void)
 {
 	return content[0];
 }
+
 const double* RealMatrix::data(void) const
 {
 	return content[0];
 }
 
-// copy to an array
 void RealMatrix::transform_to_1d(double* array) const
 {
 	copy(content[0], content[0] + nelements, array);
 }
 
-// make it symmetry. A[i][j]=A[j][i]=(A[i][j]+A[j][i])/2.0
+/// Make the real matrix object symmetric. A[i][j]=A[j][i]=(A[i][j]+A[j][i])/2.0
+///
+/// This is recommended to use ONLY for matrices close to symmetric
+/// (e.g. a symmetric matrix after basis transformation).
 void RealMatrix::symmetrize(void)
 {
 	for (int i = 0; i < length; i++)
@@ -108,17 +107,44 @@ void RealMatrix::symmetrize(void)
 	}
 }
 
-// overload operator[]
 double* RealMatrix::operator[](const int idx)
 {
 	return content[idx];
 }
+
 const double* RealMatrix::operator[](const int idx) const
 {
 	return content[idx];
 }
 
+RealMatrix& RealMatrix::operator=(const RealMatrix& rhs)
+{
+	if (length != rhs.length)
+	{
+		delete[] content[0];
+		delete[] content;
+		length = rhs.length;
+		nelements = rhs.nelements;
+		content = new double* [length];
+		content[0] = new double[nelements];
+		for (int i = 1; i < length; i++)
+		{
+			content[i] = content[0] + i * length;
+		}
+	}
+	copy(rhs.content[0], rhs.content[0] + nelements, content[0]);
+	return *this;
+}
+
+RealMatrix& RealMatrix::operator=(const double* array)
+{
+	copy(array, array + nelements, content[0]);
+	return *this;
+}
+
+
 // overload numerical calculation by VMF
+
 RealMatrix operator+(const RealMatrix& lhs, const double& rhs)
 {
 	RealMatrix result = lhs;
@@ -128,6 +154,7 @@ RealMatrix operator+(const RealMatrix& lhs, const double& rhs)
 	}
 	return result;
 }
+
 RealMatrix operator+(const double& lhs, const RealMatrix& rhs)
 {
 	RealMatrix result = rhs;
@@ -137,6 +164,7 @@ RealMatrix operator+(const double& lhs, const RealMatrix& rhs)
 	}
 	return result;
 }
+
 RealMatrix operator+(const RealMatrix& lhs, const RealMatrix& rhs)
 {
 	if (lhs.length != rhs.length)
@@ -148,6 +176,7 @@ RealMatrix operator+(const RealMatrix& lhs, const RealMatrix& rhs)
 	vmdAdd(result.nelements, lhs.content[0], rhs.content[0], result.content[0], mode);
 	return result;
 }
+
 RealMatrix& RealMatrix::operator+=(const double& rhs)
 {
 	for (int i = 0; i < length; i++)
@@ -156,6 +185,7 @@ RealMatrix& RealMatrix::operator+=(const double& rhs)
 	}
 	return *this;
 }
+
 RealMatrix& RealMatrix::operator+=(const RealMatrix& rhs)
 {
 	if (length != rhs.length)
@@ -173,6 +203,7 @@ RealMatrix& RealMatrix::operator+=(const RealMatrix& rhs)
 	delete[] result;
 	return *this;
 }
+
 RealMatrix operator-(const RealMatrix& lhs, const double& rhs)
 {
 	RealMatrix result = lhs;
@@ -182,6 +213,7 @@ RealMatrix operator-(const RealMatrix& lhs, const double& rhs)
 	}
 	return result;
 }
+
 RealMatrix operator-(const double& lhs, const RealMatrix& rhs)
 {
 	RealMatrix result = -1.0 * rhs;
@@ -191,6 +223,7 @@ RealMatrix operator-(const double& lhs, const RealMatrix& rhs)
 	}
 	return result;
 }
+
 RealMatrix operator-(const RealMatrix& lhs, const RealMatrix& rhs)
 {
 	if (lhs.length != rhs.length)
@@ -202,6 +235,7 @@ RealMatrix operator-(const RealMatrix& lhs, const RealMatrix& rhs)
 	vmdSub(result.nelements, lhs.content[0], rhs.content[0], result.content[0], mode);
 	return result;
 }
+
 RealMatrix& RealMatrix::operator-=(const double& rhs)
 {
 	for (int i = 0; i < length; i++)
@@ -210,6 +244,7 @@ RealMatrix& RealMatrix::operator-=(const double& rhs)
 	}
 	return *this;
 }
+
 RealMatrix& RealMatrix::operator-=(const RealMatrix& rhs)
 {
 	if (length != rhs.length)
@@ -227,6 +262,7 @@ RealMatrix& RealMatrix::operator-=(const RealMatrix& rhs)
 	delete[] result;
 	return *this;
 }
+
 RealMatrix operator*(const RealMatrix& lhs, const double& rhs)
 {
 	RealMatrix result(lhs.length);
@@ -235,6 +271,7 @@ RealMatrix operator*(const RealMatrix& lhs, const double& rhs)
 	vmdMul(lhs.nelements, lhs.content[0], num, result.content[0], mode);
 	return result;
 }
+
 RealMatrix operator*(const double& lhs, const RealMatrix& rhs)
 {
 	RealMatrix result(rhs.length);
@@ -243,6 +280,7 @@ RealMatrix operator*(const double& lhs, const RealMatrix& rhs)
 	vmdMul(rhs.nelements, num, rhs.content[0], result.content[0], mode);
 	return result;
 }
+
 RealMatrix& RealMatrix::operator*=(const double& rhs)
 {
 	double* num = new double[nelements];
@@ -257,44 +295,22 @@ RealMatrix& RealMatrix::operator*=(const double& rhs)
 	delete[] result;
 	return *this;
 }
+
 RealMatrix operator/(const RealMatrix& lhs, const double& rhs)
 {
 	return lhs * (1.0 / rhs);
 }
+
 RealMatrix& RealMatrix::operator/=(const double& rhs)
 {
 	*this *= 1.0 / rhs;
 	return *this;
 }
 
-// assignment operator
-RealMatrix& RealMatrix::operator=(const RealMatrix& rhs)
-{
-	if (length != rhs.length)
-	{
-		delete[] content[0];
-		delete[] content;
-		length = rhs.length;
-		nelements = rhs.nelements;
-		content = new double*[length];
-		content[0] = new double[nelements];
-		for (int i = 1; i < length; i++)
-		{
-			content[i] = content[0] + i * length;
-		}
-	}
-	copy(rhs.content[0], rhs.content[0] + nelements, content[0]);
-	return *this;
-}
-RealMatrix& RealMatrix::operator=(const double* array)
-{
-	copy(array, array + nelements, content[0]);
-	return *this;
-}
 
 
 // ComplexMatrix functions
-// default constructor with all zero
+
 ComplexMatrix::ComplexMatrix(const int size)
 	: length(size), nelements(length * length), content(new Complex*[length])
 {
@@ -306,7 +322,6 @@ ComplexMatrix::ComplexMatrix(const int size)
 	memset(content[0], 0, nelements * sizeof(Complex));
 }
 
-// copy constructor
 ComplexMatrix::ComplexMatrix(const ComplexMatrix& matrix)
 	: length(matrix.length), nelements(matrix.nelements), content(new Complex*[length])
 {
@@ -318,7 +333,6 @@ ComplexMatrix::ComplexMatrix(const ComplexMatrix& matrix)
 	copy(matrix.content[0], matrix.content[0] + matrix.nelements, content[0]);
 }
 
-// quasi copy constructor
 ComplexMatrix::ComplexMatrix(const int size, const Complex* array)
 	: length(size), nelements(length * length), content(new Complex*[length])
 {
@@ -330,7 +344,6 @@ ComplexMatrix::ComplexMatrix(const int size, const Complex* array)
 	copy(array, array + nelements, content[0]);
 }
 
-// copy constructor from real matrix
 ComplexMatrix::ComplexMatrix(const RealMatrix& matrix)
 	: length(matrix.length), nelements(matrix.nelements), content(new Complex*[length])
 {
@@ -342,7 +355,6 @@ ComplexMatrix::ComplexMatrix(const RealMatrix& matrix)
 	real_to_complex(matrix.content[0], content[0], matrix.nelements);
 }
 
-// quasi copy constructor from real matrix
 ComplexMatrix::ComplexMatrix(const int size, const double* array)
 	: length(size), nelements(length * length), content(new Complex*[length])
 {
@@ -354,7 +366,6 @@ ComplexMatrix::ComplexMatrix(const int size, const double* array)
 	real_to_complex(array, content[0], nelements);
 }
 
-// one element is give number and the other are all zero
 ComplexMatrix::ComplexMatrix(const int size, const Index& idx, const Complex& val)
 	: length(size), nelements(length * length), content(new Complex*[length])
 {
@@ -367,38 +378,39 @@ ComplexMatrix::ComplexMatrix(const int size, const Index& idx, const Complex& va
 	content[idx.first][idx.second] = val;
 }
 
-// destructor
 ComplexMatrix::~ComplexMatrix(void)
 {
 	delete[] content[0];
 	delete[] content;
 }
 
-// the size of the matrix
+
 int ComplexMatrix::length_of_matrix(void) const
 {
 	return length;
 }
 
-// direct access to internal data
 Complex* ComplexMatrix::data(void)
 {
 	return content[0];
 }
+
 const Complex* ComplexMatrix::data(void) const
 {
 	return content[0];
 }
 
-// copy to an array
 void ComplexMatrix::transform_to_1d(Complex* array) const
 {
 	copy(content[0], content[0] + nelements, array);
 }
 
-// make the matrix hermitian: A[i][i].imag=0,
-// A[i][j].real=(A[i][j].real+A[j][i].real)/2
-// A[i][j].imag=(A[i][j].imag-A[j][i].imag)/2
+/// Make the complex matrix object hermitian: A[i][i].imag=0,
+/// A[i][j].real=(A[i][j].real+A[j][i].real)/2,
+/// A[i][j].imag=(A[i][j].imag-A[j][i].imag)/2
+///
+/// This is recommended to use ONLY for matrices close to hermitian
+/// (e.g. an hermitian matrix after basis transformation).
 void ComplexMatrix::hermitize(void)
 {
     // for diagonal elements, set imag to 0
@@ -415,17 +427,44 @@ void ComplexMatrix::hermitize(void)
     }
 }
 
-// overload operator(): return the element (=[][])
 Complex* ComplexMatrix::operator[](const int idx)
 {
 	return content[idx];
 }
+
 const Complex* ComplexMatrix::operator[](const int idx) const
 {
 	return content[idx];
 }
 
-// overload numerical calculation
+ComplexMatrix& ComplexMatrix::operator=(const ComplexMatrix& rhs)
+{
+	if (length != rhs.length)
+	{
+		delete[] content[0];
+		delete[] content;
+		length = rhs.length;
+		nelements = rhs.nelements;
+		content = new Complex * [length];
+		content[0] = new Complex[nelements];
+		for (int i = 1; i < length; i++)
+		{
+			content[i] = content[0] + i * length;
+		}
+	}
+	copy(rhs.content[0], rhs.content[0] + nelements, content[0]);
+	return *this;
+}
+
+ComplexMatrix& ComplexMatrix::operator=(const Complex* array)
+{
+	copy(array, array + nelements, content[0]);
+	return *this;
+}
+
+
+// overload numerical calculation by VMF
+
 ComplexMatrix operator+(const ComplexMatrix& lhs, const Complex& rhs)
 {
 	ComplexMatrix result = lhs;
@@ -435,6 +474,7 @@ ComplexMatrix operator+(const ComplexMatrix& lhs, const Complex& rhs)
 	}
 	return result;
 }
+
 ComplexMatrix operator+(const Complex& lhs, const ComplexMatrix& rhs)
 {
 	ComplexMatrix result = rhs;
@@ -444,6 +484,7 @@ ComplexMatrix operator+(const Complex& lhs, const ComplexMatrix& rhs)
 	}
 	return result;
 }
+
 ComplexMatrix operator+(const ComplexMatrix& lhs, const ComplexMatrix& rhs)
 {
 	if (lhs.length != rhs.length)
@@ -455,6 +496,7 @@ ComplexMatrix operator+(const ComplexMatrix& lhs, const ComplexMatrix& rhs)
 	vmzAdd(result.nelements, reinterpret_cast<const MKL_Complex16*>(lhs.content[0]), reinterpret_cast<const MKL_Complex16*>(rhs.content[0]), reinterpret_cast<MKL_Complex16*>(result.content[0]), mode);
 	return result;
 }
+
 ComplexMatrix& ComplexMatrix::operator+=(const Complex& rhs)
 {
 	for (int i = 0; i < length; i++)
@@ -463,6 +505,7 @@ ComplexMatrix& ComplexMatrix::operator+=(const Complex& rhs)
 	}
 	return *this;
 }
+
 ComplexMatrix& ComplexMatrix::operator+=(const ComplexMatrix& rhs)
 {
 	if (length != rhs.length)
@@ -480,6 +523,7 @@ ComplexMatrix& ComplexMatrix::operator+=(const ComplexMatrix& rhs)
 	delete[] result;
 	return *this;
 }
+
 ComplexMatrix operator-(const ComplexMatrix& lhs, const Complex& rhs)
 {
 	ComplexMatrix result = lhs;
@@ -489,6 +533,7 @@ ComplexMatrix operator-(const ComplexMatrix& lhs, const Complex& rhs)
 	}
 	return result;
 }
+
 ComplexMatrix operator-(const Complex& lhs, const ComplexMatrix& rhs)
 {
 	ComplexMatrix result = -1.0 * rhs;
@@ -498,6 +543,7 @@ ComplexMatrix operator-(const Complex& lhs, const ComplexMatrix& rhs)
 	}
 	return result;
 }
+
 ComplexMatrix operator-(const ComplexMatrix& lhs, const ComplexMatrix& rhs)
 {
 	if (lhs.length != rhs.length)
@@ -509,6 +555,7 @@ ComplexMatrix operator-(const ComplexMatrix& lhs, const ComplexMatrix& rhs)
 	vmzSub(result.nelements, reinterpret_cast<const MKL_Complex16*>(lhs.content[0]), reinterpret_cast<const MKL_Complex16*>(rhs.content[0]), reinterpret_cast<MKL_Complex16*>(result.content[0]), mode);
 	return result;
 }
+
 ComplexMatrix& ComplexMatrix::operator-=(const Complex& rhs)
 {
 	for (int i = 0; i < length; i++)
@@ -517,6 +564,7 @@ ComplexMatrix& ComplexMatrix::operator-=(const Complex& rhs)
 	}
 	return *this;
 }
+
 ComplexMatrix& ComplexMatrix::operator-=(const ComplexMatrix& rhs)
 {
 	if (length != rhs.length)
@@ -534,6 +582,7 @@ ComplexMatrix& ComplexMatrix::operator-=(const ComplexMatrix& rhs)
 	delete[] result;
 	return *this;
 }
+
 ComplexMatrix operator*(const ComplexMatrix& lhs, const Complex& rhs)
 {
 	ComplexMatrix result(lhs.length);
@@ -542,6 +591,7 @@ ComplexMatrix operator*(const ComplexMatrix& lhs, const Complex& rhs)
 	vmzMul(lhs.nelements, reinterpret_cast<const MKL_Complex16*>(lhs.content[0]), reinterpret_cast<const MKL_Complex16*>(num), reinterpret_cast<MKL_Complex16*>(result.content[0]), mode);
 	return result;
 }
+
 ComplexMatrix operator*(const Complex& lhs, const ComplexMatrix& rhs)
 {
 	ComplexMatrix result(rhs.length);
@@ -550,6 +600,7 @@ ComplexMatrix operator*(const Complex& lhs, const ComplexMatrix& rhs)
 	vmzMul(rhs.nelements, reinterpret_cast<const MKL_Complex16*>(num), reinterpret_cast<const MKL_Complex16*>(rhs.content[0]), reinterpret_cast<MKL_Complex16*>(result.content[0]), mode);
 	return result;
 }
+
 ComplexMatrix& ComplexMatrix::operator*=(const Complex& rhs)
 {
 	Complex* num = new Complex[nelements];
@@ -564,44 +615,22 @@ ComplexMatrix& ComplexMatrix::operator*=(const Complex& rhs)
 	delete[] result;
 	return *this;
 }
+
 ComplexMatrix operator/(const ComplexMatrix& lhs, const Complex& rhs)
 {
 	return lhs * (1.0 / rhs);
 }
+
 ComplexMatrix& ComplexMatrix::operator/=(const Complex& rhs)
 {
 	*this *= 1.0 / rhs;
 	return *this;
 }
 
-// assignment operator
-ComplexMatrix& ComplexMatrix::operator=(const ComplexMatrix& rhs)
-{
-	if (length != rhs.length)
-	{
-		delete[] content[0];
-		delete[] content;
-		length = rhs.length;
-		nelements = rhs.nelements;
-		content = new Complex*[length];
-		content[0] = new Complex[nelements];
-		for (int i = 1; i < length; i++)
-		{
-			content[i] = content[0] + i * length;
-		}
-	}
-	copy(rhs.content[0], rhs.content[0] + nelements, content[0]);
-	return *this;
-}
-ComplexMatrix& ComplexMatrix::operator=(const Complex* array)
-{
-	copy(array, array + nelements, content[0]);
-	return *this;
-}
 
 
-// ComplexMatrixMatrix
-// constructor; out for this, inner for ComplexMatrix
+// ComplexMatrixMatrix functions
+
 ComplexMatrixMatrix::ComplexMatrixMatrix(const int OuterLength, const int InnerLength)
 	: length(OuterLength), nelements(length * length), content(new ComplexMatrix*[length])
 {
@@ -613,7 +642,6 @@ ComplexMatrixMatrix::ComplexMatrixMatrix(const int OuterLength, const int InnerL
 	}
 }
 
-// destructor;
 ComplexMatrixMatrix::~ComplexMatrixMatrix(void)
 {
 	destroy(content[0], content[0] + nelements);
@@ -621,17 +649,25 @@ ComplexMatrixMatrix::~ComplexMatrixMatrix(void)
 	delete[] content;
 }
 
-// operator[]
 ComplexMatrix* ComplexMatrixMatrix::operator[](const int idx)
 {
 	return content[idx];
 }
+
 const ComplexMatrix* ComplexMatrixMatrix::operator[](const int idx) const
 {
 	return content[idx];
 }
 
-// output
+/// Output one element of ComplexMatrix in a line, change column first, then row
+///
+/// That is to say,
+///
+/// (line 1) rho[0][0][0][0] rho[0][1][0][0] rho[0][2][0][0] ... rho[0][n][0][0] ... rho[n][n][0][0]
+///
+/// (line 2) rho[0][0][0][1] rho[0][1][0][1] rho[0][2][0][1] ... rho[0][n][0][1] ... rho[n][n][0][1]
+///
+/// and so on.
 ostream& operator<<(ostream& os, const ComplexMatrixMatrix& rho)
 {
 	for (int a = 0; a < rho.content[0][0].length_of_matrix(); a++)
