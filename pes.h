@@ -47,6 +47,26 @@ extern const function<RealMatrix(const double)> potential[NoBasis]; ///< functio
 extern const function<RealMatrix(const double)> force[NoBasis]; ///< function object: force (F=-dV/dR)
 extern const function<RealMatrix(const double)> coupling[NoBasis]; ///< function object: non-adiabatic coupling (dij=<i|d/dR|j>)
 
+// save V/F/D in an array
+
+/// @brief calculate the potential matrix on each grid, and saves it in an array
+/// @param NGrids the number of grids on one dimention (overall NGrids^2 sub-DM in rho)
+/// @param GridPosition the array saved the position of each grid, i.e., x_i
+/// @return a 2D array, one for basis and one for grid, i.e. V[Basis][Grid]
+RealMatrix** calculate_potential_on_grids(const int NGrids, const double* const GridPosition);
+
+/// @brief calculate the force matrix on each grid, and saves it in an array
+/// @param NGrids the number of grids on one dimention (overall NGrids^2 sub-DM in rho)
+/// @param GridPosition the array saved the position of each grid, i.e., x_i
+/// @return a 2D array, one for basis and one for grid, i.e. F[Basis][Grid]
+RealMatrix** calculate_force_on_grids(const int NGrids, const double* const GridPosition);
+
+/// @brief calculate the coupling matrix on each grid, and saves it in an array
+/// @param NGrids the number of grids on one dimention (overall NGrids^2 sub-DM in rho)
+/// @param GridPosition the array saved the position of each grid, i.e., x_i
+/// @return a 2D array, one for basis and one for grid, i.e. D[Basis][Grid]
+RealMatrix** calculate_coupling_on_grids(const int NGrids, const double* const GridPosition);
+
 extern const function<void(ComplexMatrixMatrix&, int, const double* const)> basis_transform[NoBasis][NoBasis]; ///< function object: basis transformation matrices
 
 #endif // !PES_H

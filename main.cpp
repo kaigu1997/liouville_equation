@@ -86,9 +86,9 @@ int main(void)
     // calculate the grid coordinates, and print them
     for (int i = 0; i < NGrids; i++)
     {
-        GridPosition[i] = xmin + i * dx;
+        GridPosition[i] = (xmin * (NGrids - 1 - i) + xmax * i) / (NGrids - 1);
         Position << GridPosition[i] << '\n';
-        GridMomentum[i] = pmin + i * dp;
+        GridMomentum[i] = (pmin * (NGrids - 1 - i) + pmax * i) / (NGrids - 1);
         Momentum << GridMomentum[i] << '\n';
     }
     clog << "dx = " << dx << ", dp = " << dp << ", and there is overall " << NGrids << " grids\n"
@@ -96,12 +96,18 @@ int main(void)
     Position.close();
     Momentum.close();
 
+    // save the V, F and D matrices
+    const RealMatrix* const* const Potential = calculate_potential_on_grids(NGrids, GridPosition);
+    const RealMatrix* const* const Force = calculate_force_on_grids(NGrids, GridPosition);
+    const RealMatrix* const* const Coupling = calculate_coupling_on_grids(NGrids, GridPosition);
+
     // total time is based on the length/speed*coe
     // being a rough approx, corrected during running
     const double TotalTime = TotalPositionLength / (p0 / mass) * 2.0;
     // read evolving time and output time, in unit of a.u.
     const double OutputTime = read_double(in);
-    const double dt = cutoff(read_double(in));
+    // criteria of dt: dt*dE<=hbar/2, dE=sigmap*sqrt(p^2-sigmap^2/16)/m=sigmap*p/m
+    const double dt = cutoff(min(read_double(in), hbar / 500.0 / (SigmaP * p0 / mass)));
     // finish reading
     in.close();
     // calculate corresponding dt of the above (how many dt they have)
@@ -131,12 +137,14 @@ int main(void)
     // rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x-(p-p0)^2/2sigma_p)/(pi*hbar)
     // initially in the adiabatic basis
     density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho);
+    // the evolving representation
+    const Representation EvolveBasis = Diabatic;
     // after initialization, calculate the averages and populations, and output
     // using structured binding in C++17
     Steps << 0 << endl;
     Output << rho << endl;
-    auto& [LastE, LastX, LastP] = calculate_average(rho, NGrids, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
-    Log << 0 << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar;
+    auto [LastE, LastX, LastP] = calculate_average(rho, NGrids, Potential, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+    Log << 0 << ' ' << LastE << ' ' << LastX << ' ' << LastP;
     calculate_popultion(NGrids, dx, dp, rho, Population);
     for (int i = 0; i < NumPES; i++)
     {
@@ -144,7 +152,7 @@ int main(void)
     }
     Log << endl;
     // transform to diabatic basis for evolution
-    basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
+    basis_transform[Adiabatic][EvolveBasis](rho, NGrids, GridPosition);
     clog << "Finish diagonalization and memory allocation.\n" << show_time << endl;
 
     // evolve: Trotter expansion
@@ -157,7 +165,7 @@ int main(void)
         // 1. Quantum Liouville, -iLQ*rho=-i/hbar[V-i*hbar*P/m*D, rho]
         // for diabatic basis, D=0, so simply trans to adia basis
         // exp(-iLQt)rho_dia=exp(-iVd t/hbar)*rho_adia*exp(iVd t/hbar), t=dt/2
-        quantum_liouville_propagation(rho, NGrids, GridPosition, GridMomentum, mass, dt / 2.0, Diabatic);
+        quantum_liouville_propagation(rho, NGrids, Potential, Coupling, GridPosition, GridMomentum, mass, dt / 2.0, EvolveBasis);
         // 2. Classical position Liouville, -iLRrho=-P/M*drho/dR = -P/M*D_R*rho
         // so exp(-iLRt)=exp(-i*(-iPD_R/M)*t), t=dt/2
         classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
@@ -165,24 +173,24 @@ int main(void)
         // -iLQrho=-(Fd*drho/dP+drho/dP*Fd)/2
         // so exp(-iLQt)=exp(-i(-i*(Fdaa+Fdbb)*D_P/2)t)
         // transform the density matrix to force basis
-        classical_momentum_liouville_propagator(rho, NGrids, GridPosition, dp, dt);
+        classical_momentum_liouville_propagator(rho, NGrids, Force, GridPosition, dp, dt, EvolveBasis);
         // 4. Classical position Liouville again
         classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
         // 5. Quantum Liouville again
-        quantum_liouville_propagation(rho, NGrids, GridPosition, GridMomentum, mass, dt / 2.0, Diabatic);
+        quantum_liouville_propagation(rho, NGrids, Potential, Coupling, GridPosition, GridMomentum, mass, dt / 2.0, EvolveBasis);
 
         // for the output case
         if (iStep % OutputStep == 0)
         {
             const double Time = iStep * dt;
-            basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
+            basis_transform[EvolveBasis][Adiabatic](rho, NGrids, GridPosition);
             Steps << Time << endl;
             // output the whole density matrix
             Output << rho << endl;
 
             // calculate <E>, <x>, <p> ...
             // using structured binding in C++17
-            const auto& [E_bar, x_bar, p_bar] = calculate_average(rho, NGrids, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+            const auto& [E_bar, x_bar, p_bar] = calculate_average(rho, NGrids, Potential, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
             // ... then output
             Log << Time << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar;
             calculate_popultion(NGrids, dx, dp, rho, Population);
@@ -192,9 +200,9 @@ int main(void)
             }
             Log << endl;
             // compare with last time and see the difference
-            if ((x_bar - LastX) * p0 < 0)
+            if (x_bar > 0 && (x_bar - LastX) * p0 < 0)
             {
-                basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
+                basis_transform[Adiabatic][EvolveBasis](rho, NGrids, GridPosition);
                 // the wavepacket changes its direction, stop evolving
                 break;
             }

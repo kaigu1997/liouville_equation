@@ -280,7 +280,7 @@ static RealMatrix force_basis_force(const double x)
 {
     RealMatrix EigVec = diabatic_force(x);
     double EigVal[NumPES];
-    if (LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'V', 'U', NumPES, EigVec.data(), NumPES, EigVal) != 0)
+    if (LAPACKE_dsyev(LAPACK_ROW_MAJOR, 'N', 'U', NumPES, EigVec.data(), NumPES, EigVal) != 0)
     {
         cerr << "UNABLE TO CALCULATE ADIABATIC REPRESENTATION AT " << x << endl;
         exit(203);
@@ -628,6 +628,57 @@ static void force_basis_to_adiabatic(ComplexMatrixMatrix& rho, const int NGrids,
 extern const function<RealMatrix(const double)> potential[NoBasis] = { diabatic_potential, adiabatic_potential, force_basis_potential }; ///< function object: potential (V of environment, H of subsystem); saved in array
 extern const function<RealMatrix(const double)> force[NoBasis] = { diabatic_force, adiabatic_force, force_basis_force }; ///< function object: force (F=-dV/dR); saved in array
 extern const function<RealMatrix(const double)> coupling[NoBasis] = { diabatic_coupling, adiabatic_coupling, force_basis_coupling }; ///< function object: non-adiabatic coupling (dij=<i|d/dR|j>); saved in array
+
+RealMatrix** calculate_potential_on_grids(const int NGrids, const double* const GridPosition)
+{
+    allocator<RealMatrix> MatrixAllocator;
+    RealMatrix** result = new RealMatrix * [NoBasis];
+    for (int i = 0; i < NoBasis; i++)
+    {
+        result[i] = MatrixAllocator.allocate(NGrids);
+        for (int j = 0; j < NGrids; j++)
+        {
+            const double& x = GridPosition[j];
+            const RealMatrix H = potential[i](x);
+            uninitialized_copy(&H, &H + 1, result[i] + j);
+        }
+    }
+    return result;
+}
+
+RealMatrix** calculate_force_on_grids(const int NGrids, const double* const GridPosition)
+{
+    allocator<RealMatrix> MatrixAllocator;
+    RealMatrix** result = new RealMatrix * [NoBasis];
+    for (int i = 0; i < NoBasis; i++)
+    {
+        result[i] = MatrixAllocator.allocate(NGrids);
+        for (int j = 0; j < NGrids; j++)
+        {
+            const double& x = GridPosition[j];
+            const RealMatrix F = force[i](x);
+            uninitialized_copy(&F, &F + 1, result[i] + j);
+        }
+    }
+    return result;
+}
+
+RealMatrix** calculate_coupling_on_grids(const int NGrids, const double* const GridPosition)
+{
+    allocator<RealMatrix> MatrixAllocator;
+    RealMatrix** result = new RealMatrix * [NoBasis];
+    for (int i = 0; i < NoBasis; i++)
+    {
+        result[i] = MatrixAllocator.allocate(NGrids);
+        for (int j = 0; j < NGrids; j++)
+        {
+            const double& x = GridPosition[j];
+            const RealMatrix D = coupling[i](x);
+            uninitialized_copy(&D, &D + 1, result[i] + j);
+        }
+    }
+    return result;
+}
 
 extern const function<void(ComplexMatrixMatrix&, int, const double* const)> basis_transform[NoBasis][NoBasis] = 
 {

@@ -1,7 +1,7 @@
 CXX := icpc
 WARNINGFLAGS := -Wall -Wextra -Wconversion -Wshadow
 CXXFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -fast -g
-LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -fast -Wl,-fuse-ld=gold
+LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -Wl,-fuse-ld=gold
 Objects := matrix.o general.o pes.o main.o
 HeaderFile := matrix.h general.h pes.h
 
@@ -9,7 +9,7 @@ HeaderFile := matrix.h general.h pes.h
 all: mqcl
 
 mqcl: ${Objects}
-	${CXX} ${LDFLAGS} ${Objects} -o mqcl
+	${CXX} ${LDFLAGS} ${Objects} -o mqcl ${LDLIBS}
 main.o: main.cpp ${HeaderFile}
 	${CXX} ${CXXFLAGS} -c main.cpp -o main.o
 pes.o: pes.cpp ${HeaderFile}
@@ -23,11 +23,10 @@ matrix.o: matrix.cpp matrix.h
 clean:
 	-\rm *.o
 
-.PHONY: clean_result
-clean_result:
-	-\rm log output *.txt *.png *.gif
+.PHONY: distclean
+distclean:
+	-\rm log output *.txt *.png *.gif *.o mqcl
 
 .PHONY: git
 git:
 	git add *.h *.cpp makefile *.sh *.py .gitignore
-
