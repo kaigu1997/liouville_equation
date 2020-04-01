@@ -91,7 +91,7 @@ int main(void)
         GridMomentum[i] = (pmin * (NGrids - 1 - i) + pmax * i) / (NGrids - 1);
         Momentum << GridMomentum[i] << '\n';
     }
-    clog << "dx = " << dx << ", dp = " << dp << ", and there is overall " << NGrids << " grids\n"
+    clog << "dx = " << dx << ", dp = " << dp << ", and there are overall " << NGrids << " grids\n"
         << "in [" << xmin << ", " << xmax <<"] for x and [" << pmin << ", " << pmax << "] for p.\n";
     Position.close();
     Momentum.close();
@@ -113,7 +113,7 @@ int main(void)
     // calculate corresponding dt of the above (how many dt they have)
     const int TotalStep = static_cast<int>(TotalTime / dt);
     const int OutputStep = static_cast<int>(OutputTime / dt);
-    clog << "dt = " << dt << ", and there is overall " << TotalStep << " time steps." << endl;
+    clog << "dt = " << dt << ", and there are overall " << TotalStep << " time steps." << endl;
 
     // Steps contains when is each step, also one in a line
     ofstream Steps("t.txt");
@@ -136,16 +136,46 @@ int main(void)
     // construct the initial adiabatic PWTDM: gaussian on the ground state PES
     // rho[0][0](x,p,0)=exp(-(x-x0)^2/2sigma_x-(p-p0)^2/2sigma_p)/(pi*hbar)
     // initially in the adiabatic basis
-    density_matrix_initialization(NGrids, GridPosition, GridMomentum, dx, dp, x0, p0, SigmaX, SigmaP, rho);
+    density_matrix_initialization
+    (
+        NGrids,
+        GridPosition,
+        GridMomentum,
+        dx,
+        dp,
+        x0,
+        p0,
+        SigmaX,
+        SigmaP,
+        rho
+    );
     // the evolving representation
     const Representation EvolveBasis = Diabatic;
     // after initialization, calculate the averages and populations, and output
     // using structured binding in C++17
     Steps << 0 << endl;
     Output << rho << endl;
-    auto [LastE, LastX, LastP] = calculate_average(rho, NGrids, Potential, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+    auto [LastE, LastX, LastP] = calculate_average
+    (
+        rho,
+        NGrids,
+        Potential,
+        GridPosition,
+        GridMomentum,
+        mass,
+        dx,
+        dp,
+        Adiabatic
+    );
     Log << 0 << ' ' << LastE << ' ' << LastX << ' ' << LastP;
-    calculate_popultion(NGrids, dx, dp, rho, Population);
+    calculate_popultion
+    (
+        NGrids,
+        dx,
+        dp,
+        rho,
+        Population
+    );
     for (int i = 0; i < NumPES; i++)
     {
         Log << ' ' << Population[i];
@@ -165,19 +195,69 @@ int main(void)
         // 1. Quantum Liouville, -iLQ*rho=-i/hbar[V-i*hbar*P/m*D, rho]
         // for diabatic basis, D=0, so simply trans to adia basis
         // exp(-iLQt)rho_dia=exp(-iVd t/hbar)*rho_adia*exp(iVd t/hbar), t=dt/2
-        quantum_liouville_propagation(rho, NGrids, Potential, Coupling, GridPosition, GridMomentum, mass, dt / 2.0, EvolveBasis);
+        quantum_liouville_propagation
+        (
+            rho,
+            NGrids,
+            Potential,
+            Coupling,
+            GridPosition,
+            GridMomentum,
+            mass,
+            dt / 2.0,
+            EvolveBasis
+        );
         // 2. Classical position Liouville, -iLRrho=-P/M*drho/dR = -P/M*D_R*rho
         // so exp(-iLRt)=exp(-i*(-iPD_R/M)*t), t=dt/2
-        classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
+        classical_position_liouville_propagator
+        (
+            rho,
+            NGrids,
+            GridMomentum,
+            mass,
+            TotalPositionLength,
+            dx,
+            dt / 2.0
+        );
         // 3. Classical Momentum Liouville, under force basis,
         // -iLQrho=-(Fd*drho/dP+drho/dP*Fd)/2
         // so exp(-iLQt)=exp(-i(-i*(Fdaa+Fdbb)*D_P/2)t)
         // transform the density matrix to force basis
-        classical_momentum_liouville_propagator(rho, NGrids, Force, GridPosition, dp, dt, EvolveBasis);
+        classical_momentum_liouville_propagator
+        (
+            rho,
+            NGrids,
+            Force,
+            GridPosition,
+            TotalMomentumLength,
+            dp,
+            dt,
+            EvolveBasis
+        );
         // 4. Classical position Liouville again
-        classical_position_liouville_propagator(rho, NGrids, GridMomentum, mass, dx, dt / 2.0);
+        classical_position_liouville_propagator
+        (
+            rho,
+            NGrids,
+            GridMomentum,
+            mass,
+            TotalPositionLength,
+            dx,
+            dt / 2.0
+        );
         // 5. Quantum Liouville again
-        quantum_liouville_propagation(rho, NGrids, Potential, Coupling, GridPosition, GridMomentum, mass, dt / 2.0, EvolveBasis);
+        quantum_liouville_propagation
+        (
+            rho,
+            NGrids,
+            Potential,
+            Coupling,
+            GridPosition,
+            GridMomentum,
+            mass,
+            dt / 2.0,
+            EvolveBasis
+        );
 
         // for the output case
         if (iStep % OutputStep == 0)
@@ -190,10 +270,28 @@ int main(void)
 
             // calculate <E>, <x>, <p> ...
             // using structured binding in C++17
-            const auto& [E_bar, x_bar, p_bar] = calculate_average(rho, NGrids, Potential, GridPosition, GridMomentum, mass, dx, dp, Adiabatic);
+            const auto& [E_bar, x_bar, p_bar] = calculate_average
+            (
+                rho,
+                NGrids,
+                Potential,
+                GridPosition,
+                GridMomentum,
+                mass,
+                dx,
+                dp,
+                Adiabatic
+            );
             // ... then output
             Log << Time << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar;
-            calculate_popultion(NGrids, dx, dp, rho, Population);
+            calculate_popultion
+            (
+                NGrids,
+                dx,
+                dp,
+                rho,
+                Population
+            );
             for (int i = 0; i < NumPES; i++)
             {
                 Log << ' ' << Population[i];

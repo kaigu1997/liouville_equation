@@ -12,6 +12,8 @@ cd $SLURM_SUBMIT_DIR
 
 module load NiaEnv/2019b intel
 
+export OMP_NUM_THREADS=$(grep -c processor /proc/cpuinfo)
+
 # begins here
 make
 make clean

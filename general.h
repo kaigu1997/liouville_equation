@@ -162,6 +162,7 @@ void quantum_liouville_propagation
 /// @param NGrids the number of grids in density matrix, overall NGrids^2 sub-density matrices
 /// @param GridMomentum the momentum coordinate of each grid, i.e., p_j
 /// @param mass the mass of the bath
+/// @param TotalPositionLength equals to xmax-xmin, or (N-1)*dx
 /// @param dx the grid spacing of position
 /// @param dt the time step for this evolve
 /// @see quantum_liouville_propagator(), classical_momentum_liouville_propagator()
@@ -171,6 +172,7 @@ void classical_position_liouville_propagator
     const int NGrids,
     const double* const GridMomentum,
     const double mass,
+    const double TotalPositionLength,
     const double dx,
     const double dt
 );
@@ -180,6 +182,7 @@ void classical_position_liouville_propagator
 /// @param NGrids the number of grids in density matrix, overall NGrids^2 sub-density matrices
 /// @param Force the 2D array containing F of all basis on each grid
 /// @param GridPosition the position coordinate of each grid, i.e., x_i
+/// @param TotalMomentumLength equals to pmax-pmin, or (N-1)*dp
 /// @param dp the grid spacing of momentum
 /// @param dt the time step for this evolve
 /// @param BasisOfRho the basis of density matrix for deciding the way of evolution and for choosing the potential function
@@ -190,6 +193,7 @@ void classical_momentum_liouville_propagator
     const int NGrids,
     const RealMatrix* const* const Force,
     const double* const GridPosition,
+    const double TotalMomentumLength,
     const double dp,
     const double dt,
     const Representation BasisOfRho
