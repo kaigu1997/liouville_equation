@@ -1,7 +1,7 @@
 CXX := icpc
 WARNINGFLAGS := -Wall -Wextra -Wconversion -Wshadow
-CXXFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -fast -g -fopenmp
-LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -Wl,-fuse-ld=gold -fopenmp
+CXXFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -fast -g3 -fopenmp
+LDFLAGS := ${WARNINGFLAGS} -mkl -std=c++17 -ipo -Ofast -xHost -Wl,-fuse-ld=gold -g3 -fopenmp
 LDLIBS := -lpthread
 Objects := matrix.o general.o pes.o main.o
 HeaderFile := matrix.h general.h pes.h
@@ -26,7 +26,7 @@ clean:
 
 .PHONY: distclean
 distclean:
-	-\rm log out* *put *.txt *.png *.gif *.o mqcl
+	-\rm -- *log out *put *.txt *.png *.gif *.o mqcl
 
 .PHONY: git
 git:
