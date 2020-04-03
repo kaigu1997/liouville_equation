@@ -66,9 +66,9 @@ int main(void)
     // NGrids: number of grids in [xmin, xmax], also in [pmin, pmax]
     const int NGrids = static_cast<int>(TotalPositionLength / dx) + 1;
     // momentum region is determined by fourier transformation:
-    // p in pi*hbar/dx*[-1,1), dp=2*pi*hbar/(xmax-xmin)
-    const double pmin = -pi * hbar / dx;
-    const double pmax = -pmin;
+    // p in p0+pi*hbar/dx*[-1,1), dp=2*pi*hbar/(xmax-xmin)
+    const double pmin = p0 - pi * hbar / dx;
+    const double pmax = p0 + pi * hbar / dx;
     const double TotalMomentumLength = pmax - pmin;
     const double dp = TotalMomentumLength / static_cast<double>(NGrids - 1);
     // NoPSGrids: Number of Phase Space Grids
@@ -207,8 +207,8 @@ int main(void)
             dt / 2.0,
             EvolveBasis
         );
-        // 2. Classical position Liouville, -iLRrho=-P/M*drho/dR = -P/M*D_R*rho
-        // so exp(-iLRt)=exp(-i*(-iPD_R/M)*t), t=dt/2
+        // 2. Classical position Liouville, -iLRrho=-P/M*drho/dR
+        // so exp(-iLRt)=exp(-P/M*d/dR*t), t=dt/2
         classical_position_liouville_propagator
         (
             rho,
@@ -221,7 +221,7 @@ int main(void)
         );
         // 3. Classical Momentum Liouville, under force basis,
         // -iLQrho=-(Fd*drho/dP+drho/dP*Fd)/2
-        // so exp(-iLQt)=exp(-i(-i*(Fdaa+Fdbb)*D_P/2)t)
+        // so exp(-iLQt)=exp(-(Fdaa+Fdbb)/2*d/dP*t)
         // transform the density matrix to force basis
         classical_momentum_liouville_propagator
         (
@@ -298,9 +298,9 @@ int main(void)
             }
             Log << endl;
             // compare with last time and see the difference
-            if (x_bar > 0 && (x_bar - LastX) * p0 < 0)
+            // once it passes the boundary / going across the symmetric interaction region, think the evolution is over
+            if (x_bar > 0 && ((x_bar - LastX) * p0 < 0 || x_bar > -x0))
             {
-                basis_transform[Adiabatic][EvolveBasis](rho, NGrids, GridPosition);
                 // the wavepacket changes its direction, stop evolving
                 break;
             }
@@ -309,7 +309,7 @@ int main(void)
             LastX = x_bar;
             LastP = p_bar;
             // transform to diabatic basis again for next revolution
-            basis_transform[Adiabatic][Diabatic](rho, NGrids, GridPosition);
+            basis_transform[Adiabatic][EvolveBasis](rho, NGrids, GridPosition);
         }
     }
     // after evolution, print time and frees the resources

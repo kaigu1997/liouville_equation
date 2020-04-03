@@ -1,7 +1,7 @@
 #!/bin/bash 
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
-#SBATCH --time=23:59:59
+#SBATCH --time=24:00:00
 #SBATCH --job-name=mqcl
 #SBATCH --output=out
 #SBATCH --error=log
@@ -18,7 +18,7 @@ export OMP_NUM_THREADS=$(grep -c processor /proc/cpuinfo)
 make
 make clean
 mass=2000.0
-for (( i=-40;i<=10;i=i+1 ))
+for (( i=-30;i<=10;i=i+1 ))
 do
 #    p=$(echo "scale=1;$i/10.0"|bc)
     p=$(echo "sqrt(2.0*${mass}*e(${i}/10.0))"|bc -l)
@@ -37,11 +37,11 @@ Left boundary:
 Right boundary:
 20.0
 Upper limit of dx:
-0.1
+1.0
 Output period:
-50.0
+100.0
 Upper limit of dt:
-0.25
+1.0
 END_FILE
     ./mqcl >> output 2>>log
     python plot.py

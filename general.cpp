@@ -272,7 +272,7 @@ void classical_position_liouville_propagator
     const double dt
 )
 {
-#pragma omp parallel for default(none) shared(rho, cerr)
+#pragma omp parallel for default(none) shared(rho, cerr) schedule(static)
     for (int j = 0; j < NGrids; j++)
     {
         // the evolving matrix is the same for a and b, so construct and diagonalize here
@@ -385,7 +385,7 @@ void classical_momentum_liouville_propagator
 {
     // transform to force basis first
     basis_transform[BasisOfRho][ForceBasis](rho, NGrids, GridPosition);
-#pragma omp parallel for default(none) shared(rho, cerr)
+#pragma omp parallel for default(none) shared(rho, cerr) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         // the eigen forces

@@ -2,7 +2,7 @@
 make
 make clean
 mass=2000.0
-for (( i=-40;i<=10;i=i+1 ))
+for (( i=-30;i<=10;i=i+1 ))
 do
 #    p=$(echo "scale=1;$i/10.0"|bc)
     p=$(echo "sqrt(2.0*${mass}*e(${i}/10.0))"|bc -l)
