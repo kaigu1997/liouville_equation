@@ -381,6 +381,7 @@ static void diabatic_to_adiabatic(ComplexMatrixMatrix& rho, const int NGrids, co
     {
         // for the first run, do diagonalization
         TransformMatrices = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
@@ -397,6 +398,7 @@ static void diabatic_to_adiabatic(ComplexMatrixMatrix& rho, const int NGrids, co
             MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
             TransformMatrices = MatrixAllocator.allocate(NGrids);
         }
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
@@ -407,6 +409,7 @@ static void diabatic_to_adiabatic(ComplexMatrixMatrix& rho, const int NGrids, co
     }
     // rho(adia)=C^T*rho(dia)*C
     Complex MatTrans[NumPES * NumPES];
+#pragma omp parallel for default(none) shared(TransformMatrices, rho) private(MatTrans) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
@@ -439,6 +442,7 @@ static void diabatic_to_force_basis(ComplexMatrixMatrix& rho, const int NGrids, 
     {
         // for the first run, do diagonalization
         TransformMatrices = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
@@ -455,6 +459,7 @@ static void diabatic_to_force_basis(ComplexMatrixMatrix& rho, const int NGrids, 
             MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
             TransformMatrices = MatrixAllocator.allocate(NGrids);
         }
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
@@ -465,6 +470,7 @@ static void diabatic_to_force_basis(ComplexMatrixMatrix& rho, const int NGrids, 
     }
     // rho(force)=C^T*rho(dia)*C
     Complex MatTrans[NumPES * NumPES];
+#pragma omp parallel for default(none) shared(TransformMatrices, rho) private(MatTrans) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
@@ -497,6 +503,7 @@ static void adiabatic_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, co
     {
         // for the first run, do diagonalization
         TransformMatrices = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
@@ -513,6 +520,7 @@ static void adiabatic_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, co
             MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
             TransformMatrices = MatrixAllocator.allocate(NGrids);
         }
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_adiabatic_at_one_point(GridPosition[i]);
@@ -523,6 +531,7 @@ static void adiabatic_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, co
     }
     // rho(dia)=C*rho(adia)*C^T
     Complex TransMat[NumPES * NumPES];
+#pragma omp parallel for default(none) shared(TransformMatrices, rho) private(TransMat) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
@@ -570,6 +579,7 @@ static void force_basis_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, 
     {
         // for the first run, do diagonalization
         TransformMatrices = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
@@ -586,6 +596,7 @@ static void force_basis_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, 
             MatrixAllocator.deallocate(TransformMatrices, LastNGrids);
             TransformMatrices = MatrixAllocator.allocate(NGrids);
         }
+#pragma omp parallel for default(none) shared(TransformMatrices) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const ComplexMatrix TransformMatrix = diabatic_to_force_basis_at_one_point(GridPosition[i]);
@@ -596,6 +607,7 @@ static void force_basis_to_diabatic(ComplexMatrixMatrix& rho, const int NGrids, 
     }
     // rho(dia)=C*rho(force)*C^T
     Complex TransMat[NumPES * NumPES];
+#pragma omp parallel for default(none) shared(TransformMatrices, rho) private(TransMat) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         const ComplexMatrix& TransformationMatrix = TransformMatrices[i];
@@ -636,6 +648,7 @@ RealMatrix** calculate_potential_on_grids(const int NGrids, const double* const 
     for (int i = 0; i < NoBasis; i++)
     {
         result[i] = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(result, i) schedule(static)
         for (int j = 0; j < NGrids; j++)
         {
             const double& x = GridPosition[j];
@@ -653,6 +666,7 @@ RealMatrix** calculate_force_on_grids(const int NGrids, const double* const Grid
     for (int i = 0; i < NoBasis; i++)
     {
         result[i] = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(result, i) schedule(static)
         for (int j = 0; j < NGrids; j++)
         {
             const double& x = GridPosition[j];
@@ -670,6 +684,7 @@ RealMatrix** calculate_coupling_on_grids(const int NGrids, const double* const G
     for (int i = 0; i < NoBasis; i++)
     {
         result[i] = MatrixAllocator.allocate(NGrids);
+#pragma omp parallel for default(none) shared(result, i) schedule(static)
         for (int j = 0; j < NGrids; j++)
         {
             const double& x = GridPosition[j];

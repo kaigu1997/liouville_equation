@@ -186,6 +186,7 @@ void quantum_liouville_propagation
         // for diabatic basis, D=0, simple transform to adiabatic representation
         // exp(-iLQt)rho_dia=to_dia(exp(-iVd t/hbar)*rho_adia*exp(iVd t/hbar))
         basis_transform[Diabatic][Adiabatic](rho, NGrids, GridPosition);
+#pragma omp parallel for default(none) shared(rho) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const RealMatrix& H = Potential[Adiabatic][i];
@@ -211,6 +212,7 @@ void quantum_liouville_propagation
         // for other basis, no tricks to play
         // exp(-iLQt)rho=exp(-iH't/hbar)*rho*exp(iH't/hbar)
         // =C*exp(-iH'd t/hbar)*C^T*rho*C*exp(iH'd t/hbar)*C^T
+#pragma omp parallel for default(none) shared(rho, cerr) schedule(static)
         for (int i = 0; i < NGrids; i++)
         {
             const double& x = GridPosition[i];
@@ -272,7 +274,46 @@ void classical_position_liouville_propagator
     const double dt
 )
 {
-#pragma omp parallel for default(none) shared(rho, cerr) schedule(static)
+    // construct the vector: rho_W^{ab}(.,P_j)
+    Complex* DifferentPosition = new Complex[NGrids];
+    Complex* TransformedPosition = new Complex[NGrids];
+    // set the FFT handle
+    DFTI_DESCRIPTOR_HANDLE PositionFFT = nullptr;
+    // initialize
+    MKL_LONG status = DftiCreateDescriptor(&PositionFFT, DFTI_DOUBLE, DFTI_COMPLEX, 1, NGrids);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) != 0)
+    {
+        cerr << "UNABLE TO INITIALIZE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+
+    // set parameters: backward scale, to make backward the inverse of forward
+    status = DftiSetValue(PositionFFT, DFTI_BACKWARD_SCALE, 1.0 / NGrids);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
+    {
+        cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+    // set parameters: replacement, to transform to a new space
+    status = DftiSetValue(PositionFFT, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    {
+        cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+
+    // after setting parameters, commit the descriptor
+    status = DftiCommitDescriptor(PositionFFT);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
+    {
+        cerr << "UNABLE TO COMMIT FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+
+#pragma omp parallel for default(none) shared(PositionFFT, rho, cerr) private(DifferentPosition, TransformedPosition, status) schedule(static)
     for (int j = 0; j < NGrids; j++)
     {
         // the evolving matrix is the same for a and b, so construct and diagonalize here
@@ -281,42 +322,14 @@ void classical_position_liouville_propagator
         {
             for (int b = 0; b < NumPES; b++)
             {
-                // construct the vector: rho_W^{ab}(.,P_j)
-                Complex* DifferentPosition = new Complex[NGrids];
                 // assign the value
                 for (int i = 0; i < NGrids; i++)
                 {
                     DifferentPosition[i] = rho[i][j][a][b];
                 }
                 // evolve
-                // set the FFT handle
-                DFTI_DESCRIPTOR_HANDLE PositionFFT = nullptr;
-                // initialize
-                MKL_LONG status = DftiCreateDescriptor(&PositionFFT, DFTI_DOUBLE, DFTI_COMPLEX, 1, NGrids);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) != 0)
-                {
-                    cerr << "UNABLE TO INITIALIZE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
-                // set parameters: backward scale, to make backward the inverse of forward
-                status = DftiSetValue(PositionFFT, DFTI_BACKWARD_SCALE, 1.0 / NGrids);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
-                {
-                    cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
-                // after setting parameters, commit the descriptor
-                status = DftiCommitDescriptor(PositionFFT);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
-                {
-                    cerr << "UNABLE TO COMMIT FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
                 // calculate the forward FFT
-                status = DftiComputeForward(PositionFFT, DifferentPosition);
+                status = DftiComputeForward(PositionFFT, DifferentPosition, TransformedPosition);
                 if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
                 {
                     cerr << "UNABLE TO CALCULATE FORWARD FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
@@ -326,25 +339,17 @@ void classical_position_liouville_propagator
                 // multiply with exp(-P/M*2*k*pi*i/L * dt), k=-N/2 to N/2
                 for (int k = 0; k < NGrids / 2; k++)
                 {
-                    DifferentPosition[k] *= exp(-p / mass * 2 * k * pi * 1.0i / TotalPositionLength * dt);
+                    TransformedPosition[k] *= exp(-p / mass * 2 * k * pi * 1.0i / TotalPositionLength * dt);
                 }
                 for (int k = NGrids / 2; k < NGrids; k++)
                 {
-                    DifferentPosition[k] *= exp(-p / mass * 2 * (k - NGrids) * pi * 1.0i / TotalPositionLength * dt);
+                    TransformedPosition[k] *= exp(-p / mass * 2 * (k - NGrids) * pi * 1.0i / TotalPositionLength * dt);
                 }
                 // after exp, doing backward FFT
-                status = DftiComputeBackward(PositionFFT, DifferentPosition);
+                status = DftiComputeBackward(PositionFFT, TransformedPosition, DifferentPosition);
                 if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
                 {
                     cerr << "UNABLE TO CALCULATE BACKWARD FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
-                // after FFT, release the descriptor
-                status = DftiFreeDescriptor(&PositionFFT);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
-                {
-                    cerr << "UNABLE TO FREE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
                         << DftiErrorMessage(status) << endl;
                     exit(301);
                 }
@@ -353,8 +358,6 @@ void classical_position_liouville_propagator
                 {
                     rho[i][j][a][b] = DifferentPosition[i];
                 }
-                // free the memory
-                delete[] DifferentPosition;
             }
         }
         // to make density matrix on each grid hermitian
@@ -363,6 +366,18 @@ void classical_position_liouville_propagator
             rho[i][j].hermitize();
         }
     }
+
+    // after FFT, release the descriptor
+    status = DftiFreeDescriptor(&PositionFFT);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
+    {
+        cerr << "UNABLE TO FREE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+    // free the memory
+    delete[] DifferentPosition;
+    delete[] TransformedPosition;
 }
 
 /// evolve the classical momentum liouville: exp(-iLPt)rho
@@ -385,7 +400,47 @@ void classical_momentum_liouville_propagator
 {
     // transform to force basis first
     basis_transform[BasisOfRho][ForceBasis](rho, NGrids, GridPosition);
-#pragma omp parallel for default(none) shared(rho, cerr) schedule(static)
+
+    // construct the vector: rho_W^{ab}(R_i,.)
+    Complex* DifferentMomentum = new Complex[NGrids];
+    Complex* TransformedMomentum = new Complex[NGrids];
+    // set the FFT handle
+    DFTI_DESCRIPTOR_HANDLE MomentumFFT = nullptr;
+    // initialize
+    MKL_LONG status = DftiCreateDescriptor(&MomentumFFT, DFTI_DOUBLE, DFTI_COMPLEX, 1, NGrids);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) != 0)
+    {
+        cerr << "UNABLE TO INITIALIZE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+
+    // set parameters: backward scale, to make backward the inverse of forward
+    status = DftiSetValue(MomentumFFT, DFTI_BACKWARD_SCALE, 1.0 / NGrids);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
+    {
+        cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+    // set parameters: replacement, to transform to a new space
+    status = DftiSetValue(MomentumFFT, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    {
+        cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+
+    // after setting parameters, commit the descriptor
+    status = DftiCommitDescriptor(MomentumFFT);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
+    {
+        cerr << "UNABLE TO COMMIT FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+
+#pragma omp parallel for default(none) shared(MomentumFFT, rho, cerr) private(DifferentMomentum, TransformedMomentum, status) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         // the eigen forces
@@ -396,42 +451,14 @@ void classical_momentum_liouville_propagator
             for (int b = 0; b < NumPES; b++)
             {
                 const double& Fb = F[b][b];
-                // construct the vector: rho_W^{ab}(R_i,.)
-                Complex* DifferentMomentum = new Complex[NGrids];
                 // assign the value
                 for (int j = 0; j < NGrids; j++)
                 {
                     DifferentMomentum[j] = rho[i][j][a][b];
                 }
                 // evolve
-                // set the FFT handle
-                DFTI_DESCRIPTOR_HANDLE MomentumFFT = nullptr;
-                // initialize
-                MKL_LONG status = DftiCreateDescriptor(&MomentumFFT, DFTI_DOUBLE, DFTI_COMPLEX, 1, NGrids);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) != 0)
-                {
-                    cerr << "UNABLE TO INITIALIZE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
-                // set parameters: backward scale, to make backward the inverse of forward
-                status = DftiSetValue(MomentumFFT, DFTI_BACKWARD_SCALE, 1.0 / NGrids);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
-                {
-                    cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
-                // after setting parameters, commit the descriptor
-                status = DftiCommitDescriptor(MomentumFFT);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
-                {
-                    cerr << "UNABLE TO COMMIT FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
                 // calculate the forward FFT
-                status = DftiComputeForward(MomentumFFT, DifferentMomentum);
+                status = DftiComputeForward(MomentumFFT, DifferentMomentum, TransformedMomentum);
                 if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
                 {
                     cerr << "UNABLE TO CALCULATE FORWARD FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
@@ -441,25 +468,17 @@ void classical_momentum_liouville_propagator
                 // multiply with exp(-(Faa+Fbb)/2*2*k*pi*i/L*dt)=exp(-(Fa+Fb)*k*pi*i/L*dt), k=-N/2 to N/2
                 for (int k = 0; k < NGrids / 2; k++)
                 {
-                    DifferentMomentum[k] *= exp(-(Fa + Fb) * k * pi * 1.0i / TotalMomentumLength * dt);
+                    TransformedMomentum[k] *= exp(-(Fa + Fb) * k * pi * 1.0i / TotalMomentumLength * dt);
                 }
                 for (int k = NGrids / 2; k < NGrids; k++)
                 {
-                    DifferentMomentum[k] *= exp(-(Fa + Fb) * (k - NGrids) * pi * 1.0i / TotalMomentumLength * dt);
+                    TransformedMomentum[k] *= exp(-(Fa + Fb) * (k - NGrids) * pi * 1.0i / TotalMomentumLength * dt);
                 }
                 // after exp, doing backward FFT
-                status = DftiComputeBackward(MomentumFFT, DifferentMomentum);
+                status = DftiComputeBackward(MomentumFFT, TransformedMomentum, DifferentMomentum);
                 if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
                 {
                     cerr << "UNABLE TO CALCULATE BACKWARD FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
-                        << DftiErrorMessage(status) << endl;
-                    exit(301);
-                }
-                // after FFT, release the descriptor
-                status = DftiFreeDescriptor(&MomentumFFT);
-                if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
-                {
-                    cerr << "UNABLE TO FREE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
                         << DftiErrorMessage(status) << endl;
                     exit(301);
                 }
@@ -468,8 +487,6 @@ void classical_momentum_liouville_propagator
                 {
                     rho[i][j][a][b] = DifferentMomentum[j];
                 }
-                // free the memory
-                delete[] DifferentMomentum;
             }
         }
         for (int j = 0; j < NGrids; j++)
@@ -477,6 +494,18 @@ void classical_momentum_liouville_propagator
             rho[i][j].hermitize();
         }
     }
+    // after FFT, release the descriptor
+    status = DftiFreeDescriptor(&MomentumFFT);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
+    {
+        cerr << "UNABLE TO FREE FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
+            << DftiErrorMessage(status) << endl;
+        exit(301);
+    }
+    // free the memory
+    delete[] DifferentMomentum;
+    delete[] TransformedMomentum;
+
     // finally transform back to diabatic basis
     basis_transform[ForceBasis][BasisOfRho](rho, NGrids, GridPosition);
 }

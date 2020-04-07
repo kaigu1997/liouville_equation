@@ -26,8 +26,4 @@ clean:
 
 .PHONY: distclean
 distclean:
-	-\rm -- *log out *put *.txt *.png *.gif *.o mqcl
-
-.PHONY: git
-git:
-	git add *.h *.cpp makefile *.sh *.py .gitignore
+	\rm -rf -- *log *out* *.txt *.png *.gif *.o mqcl
