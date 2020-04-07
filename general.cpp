@@ -298,6 +298,7 @@ void classical_position_liouville_propagator
     }
     // set parameters: replacement, to transform to a new space
     status = DftiSetValue(PositionFFT, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
     {
         cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
             << DftiErrorMessage(status) << endl;
@@ -425,6 +426,7 @@ void classical_momentum_liouville_propagator
     }
     // set parameters: replacement, to transform to a new space
     status = DftiSetValue(MomentumFFT, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
     {
         cerr << "UNABLE TO SET PARAMETER OF FFT OF CLASSICAL POSITION LIOUVILLE BECAUSE "
             << DftiErrorMessage(status) << endl;
