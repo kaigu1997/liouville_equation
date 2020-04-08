@@ -61,7 +61,7 @@ int main(void)
     // read grid spacing, should be "~ 4 to 5 grids per de Broglie wavelength"
     // and then do the cut off, e.g. 0.2493 -> 0.2, 1.5364 -> 1
     // and the number of grids are thus determined
-    const double dx = cutoff(min(read_double(in), PlanckH / p0max / 4.0));
+    const double dx = cutoff(min(read_double(in), PlanckH / p0max / 2.0));
     //const double dx = read_double(in);
     // NGrids: number of grids in [xmin, xmax], also in [pmin, pmax]
     const int NGrids = static_cast<int>(TotalPositionLength / dx) + 1;
