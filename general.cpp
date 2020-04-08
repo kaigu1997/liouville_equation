@@ -274,9 +274,6 @@ void classical_position_liouville_propagator
     const double dt
 )
 {
-    // construct the vector: rho_W^{ab}(.,P_j)
-    Complex* DifferentPosition = new Complex[NGrids];
-    Complex* TransformedPosition = new Complex[NGrids];
     // set the FFT handle
     DFTI_DESCRIPTOR_HANDLE PositionFFT = nullptr;
     // initialize
@@ -287,7 +284,6 @@ void classical_position_liouville_propagator
             << DftiErrorMessage(status) << endl;
         exit(301);
     }
-
     // set parameters: backward scale, to make backward the inverse of forward
     status = DftiSetValue(PositionFFT, DFTI_BACKWARD_SCALE, 1.0 / NGrids);
     if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
@@ -304,7 +300,6 @@ void classical_position_liouville_propagator
             << DftiErrorMessage(status) << endl;
         exit(301);
     }
-
     // after setting parameters, commit the descriptor
     status = DftiCommitDescriptor(PositionFFT);
     if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
@@ -314,7 +309,7 @@ void classical_position_liouville_propagator
         exit(301);
     }
 
-#pragma omp parallel for default(none) shared(PositionFFT, rho, cerr) private(DifferentPosition, TransformedPosition, status) schedule(static)
+#pragma omp parallel for default(none) shared(PositionFFT, rho, cerr) private(status) schedule(static)
     for (int j = 0; j < NGrids; j++)
     {
         // the evolving matrix is the same for a and b, so construct and diagonalize here
@@ -323,6 +318,9 @@ void classical_position_liouville_propagator
         {
             for (int b = 0; b < NumPES; b++)
             {
+                // construct the vector: rho_W^{ab}(.,P_j)
+                Complex* DifferentPosition = new Complex[NGrids];
+                Complex* TransformedPosition = new Complex[NGrids];
                 // assign the value
                 for (int i = 0; i < NGrids; i++)
                 {
@@ -359,6 +357,9 @@ void classical_position_liouville_propagator
                 {
                     rho[i][j][a][b] = DifferentPosition[i];
                 }
+                // free the memory
+                delete[] DifferentPosition;
+                delete[] TransformedPosition;
             }
         }
         // to make density matrix on each grid hermitian
@@ -376,9 +377,6 @@ void classical_position_liouville_propagator
             << DftiErrorMessage(status) << endl;
         exit(301);
     }
-    // free the memory
-    delete[] DifferentPosition;
-    delete[] TransformedPosition;
 }
 
 /// evolve the classical momentum liouville: exp(-iLPt)rho
@@ -402,9 +400,6 @@ void classical_momentum_liouville_propagator
     // transform to force basis first
     basis_transform[BasisOfRho][ForceBasis](rho, NGrids, GridPosition);
 
-    // construct the vector: rho_W^{ab}(R_i,.)
-    Complex* DifferentMomentum = new Complex[NGrids];
-    Complex* TransformedMomentum = new Complex[NGrids];
     // set the FFT handle
     DFTI_DESCRIPTOR_HANDLE MomentumFFT = nullptr;
     // initialize
@@ -415,7 +410,6 @@ void classical_momentum_liouville_propagator
             << DftiErrorMessage(status) << endl;
         exit(301);
     }
-
     // set parameters: backward scale, to make backward the inverse of forward
     status = DftiSetValue(MomentumFFT, DFTI_BACKWARD_SCALE, 1.0 / NGrids);
     if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
@@ -432,7 +426,6 @@ void classical_momentum_liouville_propagator
             << DftiErrorMessage(status) << endl;
         exit(301);
     }
-
     // after setting parameters, commit the descriptor
     status = DftiCommitDescriptor(MomentumFFT);
     if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
@@ -442,7 +435,7 @@ void classical_momentum_liouville_propagator
         exit(301);
     }
 
-#pragma omp parallel for default(none) shared(MomentumFFT, rho, cerr) private(DifferentMomentum, TransformedMomentum, status) schedule(static)
+#pragma omp parallel for default(none) shared(MomentumFFT, rho, cerr) private(status) schedule(static)
     for (int i = 0; i < NGrids; i++)
     {
         // the eigen forces
@@ -453,6 +446,9 @@ void classical_momentum_liouville_propagator
             for (int b = 0; b < NumPES; b++)
             {
                 const double& Fb = F[b][b];
+                // construct the vector: rho_W^{ab}(R_i,.)
+                Complex* DifferentMomentum = new Complex[NGrids];
+                Complex* TransformedMomentum = new Complex[NGrids];
                 // assign the value
                 for (int j = 0; j < NGrids; j++)
                 {
@@ -489,6 +485,9 @@ void classical_momentum_liouville_propagator
                 {
                     rho[i][j][a][b] = DifferentMomentum[j];
                 }
+                // free the memory
+                delete[] DifferentMomentum;
+                delete[] TransformedMomentum;
             }
         }
         for (int j = 0; j < NGrids; j++)
@@ -496,6 +495,7 @@ void classical_momentum_liouville_propagator
             rho[i][j].hermitize();
         }
     }
+
     // after FFT, release the descriptor
     status = DftiFreeDescriptor(&MomentumFFT);
     if (status != 0 && DftiErrorClass(status, DFTI_NO_ERROR) == 0)
@@ -504,9 +504,6 @@ void classical_momentum_liouville_propagator
             << DftiErrorMessage(status) << endl;
         exit(301);
     }
-    // free the memory
-    delete[] DifferentMomentum;
-    delete[] TransformedMomentum;
 
     // finally transform back to diabatic basis
     basis_transform[ForceBasis][BasisOfRho](rho, NGrids, GridPosition);

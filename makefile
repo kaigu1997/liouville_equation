@@ -26,4 +26,4 @@ clean:
 
 .PHONY: distclean
 distclean:
-	\rm -rf -- *log *out* *.txt *.png *.gif *.o mqcl
+	\rm -rf -- *log *out* core.* *.txt *.png *.gif *.o mqcl
