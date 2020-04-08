@@ -13,7 +13,8 @@ input
 
 # IDE configuration
 .vs*/
-liouville_equation.*
+*.sln
+*.vcxproj*
 
 # Doxygen document
 Doxyfile*
