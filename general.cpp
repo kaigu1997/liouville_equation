@@ -105,7 +105,7 @@ void density_matrix_initialization
     }
 }
 
-void calculate_popultion
+void calculate_population
 (
     const int NGrids,
     const double dx,

@@ -168,7 +168,7 @@ int main(void)
         Adiabatic
     );
     Log << 0 << ' ' << LastE << ' ' << LastX << ' ' << LastP;
-    calculate_popultion
+    calculate_population
     (
         NGrids,
         dx,
@@ -284,7 +284,7 @@ int main(void)
             );
             // ... then output
             Log << Time << ' ' << E_bar << ' ' << x_bar << ' ' << p_bar;
-            calculate_popultion
+            calculate_population
             (
                 NGrids,
                 dx,
@@ -327,7 +327,7 @@ int main(void)
     {
         cout << p0;
     }
-    calculate_popultion(NGrids, dx, dp, rho, Population);
+    calculate_population(NGrids, dx, dp, rho, Population);
     for (int i = 0; i < NumPES; i++)
     {
         cout << ' ' << Population[i];

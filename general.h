@@ -100,7 +100,7 @@ void density_matrix_initialization
 /// @param dp the grid spacing of momentum coordinate, for normalization
 /// @param rho_adia the density matrix that should be in adiabatic representation for calculating population
 /// @param Population the array to store the calculated population on each PES
-void calculate_popultion
+void calculate_population
 (
     const int NGrids,
     const double dx,
