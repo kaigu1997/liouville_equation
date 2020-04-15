@@ -26,9 +26,12 @@ dp = (p[len(p)-1] - p[0]) / (len(p) - 1)
 xv, pv = np.meshgrid(x, p) # transform to vector for plotting
 # pick the desired colormap, sensible levels, and define a normalization
 # instance which takes data values and translates those into levels.
-levels = MaxNLocator(nbins=15).tick_values(-0.5, 0.5) # color region
-cmap = plt.get_cmap('RdBu') # the kind of color: red-white-blue
-norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True) # the mapping rule
+xmax00 = 0.2
+xmax11 = 0.05
+levels00 = MaxNLocator(nbins=15).tick_values(-xmax00, xmax00) # color region
+levels11 = MaxNLocator(nbins=15).tick_values(-xmax11, xmax11) # color region
+cmap = plt.get_cmap('seismic') # the kind of color: red-white-blue
+#norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True) # the mapping rule
 
 # initialize the plot
 fig, (ax0, ax1) = plt.subplots(nrows=2)
@@ -43,14 +46,15 @@ def init():
     ax0.set_xlabel('x')
     ax0.set_ylabel('p')
     ax0.set_title(r'$\rho_{00}$')
-    cf0 = ax0.contourf(xv, pv, np.zeros((len(x), len(p))), levels=levels, cmap=cmap)
-    fig.colorbar(cf0, ax=ax0)
+    cf0 = ax0.contourf(xv, pv, np.zeros((len(x), len(p))), levels=levels00, cmap=cmap)
+    fig.colorbar(cf0, extend='both', ax=ax0)
     ax1.clear()
     ax1.set_xlabel('x')
     ax1.set_ylabel('p')
     ax1.set_title(r'$\rho_{11}$')
-    cf1 = ax1.contourf(xv, pv, np.zeros((len(x), len(p))), levels=levels, cmap=cmap)
-    fig.colorbar(cf1, ax=ax1)
+    cf1 = ax1.contourf(xv, pv, np.zeros((len(x), len(p))), levels=levels11, cmap=cmap)
+    cf1.set_clim(-xmax11, xmax11)
+    fig.colorbar(cf1, extend='both', ax=ax1)
     # figure settings: make them closer, title to be time
     fig.suptitle('')
     return fig, ax0, ax1,
@@ -80,8 +84,8 @@ def ani(i):
     file.close()
 
     # print contourfs
-    cf0 = ax0.contourf(xv, pv, rho0_real, levels=levels, cmap=cmap)
-    cf1 = ax1.contourf(xv, pv, rho1_real, levels=levels, cmap=cmap)
+    cf0 = ax0.contourf(xv, pv, rho0_real, levels=levels00, cmap=cmap)
+    cf1 = ax1.contourf(xv, pv, rho1_real, levels=levels11, cmap=cmap)
     fig.suptitle(time_template % t[i])
     return fig, ax0, ax1,
 
