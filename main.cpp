@@ -66,9 +66,9 @@ int main(void)
     // NGrids: number of grids in [xmin, xmax], also in [pmin, pmax]
     const int NGrids = static_cast<int>(TotalPositionLength / dx) + 1;
     // momentum region is determined by fourier transformation:
-    // p in p0+pi*hbar/dx*[-1,1), dp=2*pi*hbar/(xmax-xmin)
-    const double pmin = p0 - pi * hbar / dx;
-    const double pmax = p0 + pi * hbar / dx;
+    // p in p0+pi*hbar/dx/2*[-1,1), dp=pi*hbar/(xmax-xmin)
+    const double pmin = p0 - pi * hbar / dx / 2.0;
+    const double pmax = p0 + pi * hbar / dx / 2.0;
     const double TotalMomentumLength = pmax - pmin;
     const double dp = TotalMomentumLength / static_cast<double>(NGrids - 1);
     // NoPSGrids: Number of Phase Space Grids
